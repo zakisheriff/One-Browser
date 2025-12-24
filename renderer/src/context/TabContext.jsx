@@ -55,10 +55,6 @@ export function TabProvider({ children }) {
     }, []);
 
     const removeTab = useCallback((tabId) => {
-        // Get current state synchronously to avoid stale closure
-        let newActiveId = null;
-        let needsNewActive = false;
-
         setTabs((prev) => {
             const index = prev.findIndex((t) => t.id === tabId);
             if (index === -1) return prev; // Tab not found, no change
@@ -68,24 +64,20 @@ export function TabProvider({ children }) {
             if (newTabs.length === 0) {
                 // Create a new empty tab when closing the last one
                 const newTab = { id: generateTabId(), title: 'New Tab', url: '', favicon: null, loading: false };
-                newActiveId = newTab.id;
-                needsNewActive = true;
+                // Use setTimeout to update activeTabId after this render cycle
+                setTimeout(() => setActiveTabId(newTab.id), 0);
                 return [newTab];
             }
 
-            // Check if we need to update active tab
-            // We use a functional check by seeing if tabId matches what we think is active
+            // Always update active tab when closing
             const newIndex = Math.min(index, newTabs.length - 1);
-            newActiveId = newTabs[newIndex]?.id;
-            needsNewActive = true;
+            const newActiveId = newTabs[newIndex]?.id;
+            if (newActiveId) {
+                setTimeout(() => setActiveTabId(newActiveId), 0);
+            }
 
             return newTabs;
         });
-
-        // Update activeTabId outside of setTabs to avoid closure issues
-        if (needsNewActive && newActiveId) {
-            setActiveTabId(newActiveId);
-        }
     }, []);
 
     const updateTab = useCallback((tabId, updates) => {

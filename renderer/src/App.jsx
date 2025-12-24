@@ -13,12 +13,48 @@ import { SettingsProvider, useSettings } from './context/SettingsContext';
 const BrowserApp = memo(function BrowserApp() {
     const { theme } = useTheme();
     const { tabs, activeTabId, addTab, addTabInBackground, removeTab, updateTab } = useTabs();
+    const { settings } = useSettings();
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
     const webviewRefs = useRef({});
     const closePopoversRef = useRef(null);
 
     const activeTab = tabs.find((t) => t.id === activeTabId);
+
+    // Get home page URL based on selected search engine
+    const getHomeUrl = useCallback(() => {
+        const searchEngine = settings?.searchEngine || 'google';
+        const homeUrls = {
+            google: 'https://www.google.com',
+            bing: 'https://www.bing.com',
+            duckduckgo: 'https://duckduckgo.com',
+            brave: 'https://search.brave.com'
+        };
+        return homeUrls[searchEngine] || homeUrls.google;
+    }, [settings?.searchEngine]);
+
+    // Track previous search engine to detect changes
+    const prevSearchEngineRef = useRef(settings?.searchEngine);
+
+    // When search engine changes, immediately navigate current tab to new home page
+    useEffect(() => {
+        const currentEngine = settings?.searchEngine || 'google';
+        const prevEngine = prevSearchEngineRef.current;
+
+        if (prevEngine && prevEngine !== currentEngine && activeTabId) {
+            // Search engine changed - navigate active tab to new home page
+            const homeUrls = {
+                google: 'https://www.google.com',
+                bing: 'https://www.bing.com',
+                duckduckgo: 'https://duckduckgo.com',
+                brave: 'https://search.brave.com'
+            };
+            const newHomeUrl = homeUrls[currentEngine] || homeUrls.google;
+            updateTab(activeTabId, { url: newHomeUrl, loading: true, title: 'Loading...' });
+        }
+
+        prevSearchEngineRef.current = currentEngine;
+    }, [settings?.searchEngine, activeTabId, updateTab]);
 
     // Store stable references to avoid re-registering listeners
     const addTabRef = useRef(addTab);
@@ -120,7 +156,6 @@ const BrowserApp = memo(function BrowserApp() {
     }, []);
 
     // Get settings for Toolbar Position
-    const { settings } = useSettings() || {};
     const toolbarPosition = settings?.toolbarPosition || 'bottom';
     const isTop = toolbarPosition === 'top';
 
@@ -155,17 +190,13 @@ const BrowserApp = memo(function BrowserApp() {
             >
                 {tabs.map((tab) => (
                     <div key={tab.id} className={`absolute inset-0 ${tab.id === activeTabId ? 'z-10' : 'z-0 pointer-events-none opacity-0'}`}>
-                        {tab.url ? (
-                            <WebViewContainer
-                                ref={(ref) => webviewRefs.current[tab.id] = ref}
-                                url={tab.url}
-                                tabId={tab.id}
-                                onFocus={() => setActiveTabId(tab.id)}
-                                onOpenInNewTab={(url) => addTabInBackground(url)}
-                            />
-                        ) : (
-                            tab.id === activeTabId && <NewTabPage onNavigate={handleNavigate} onOpenPanel={handleOpenPanel} />
-                        )}
+                        <WebViewContainer
+                            ref={(ref) => webviewRefs.current[tab.id] = ref}
+                            url={tab.url || getHomeUrl()}
+                            tabId={tab.id}
+                            onFocus={() => setActiveTabId(tab.id)}
+                            onOpenInNewTab={(url) => addTabInBackground(url)}
+                        />
                     </div>
                 ))}
             </div>

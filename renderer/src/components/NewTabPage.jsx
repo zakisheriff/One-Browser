@@ -59,6 +59,31 @@ const ChatGPTIcon = ({ size = 24, className }) => (
     </svg>
 );
 
+// Search Engine Icons
+const BingIcon = ({ size = 24, className }) => (
+    <svg viewBox="0 0 24 24" width={size} height={size} className={className}>
+        <path fill="#008373" d="M5 3v16.5l4.5 2.5 8-4.5v-5l-6.5-2-1.5 1v4l-2-1V3z" />
+    </svg>
+);
+
+const DuckDuckGoIcon = ({ size = 24, className }) => (
+    <svg viewBox="0 0 24 24" width={size} height={size} className={className}>
+        <circle fill="#DE5833" cx="12" cy="12" r="10" />
+        <ellipse fill="#FFF" cx="9" cy="10" rx="2" ry="2.5" />
+        <ellipse fill="#FFF" cx="15" cy="10" rx="2" ry="2.5" />
+        <circle fill="#222" cx="9" cy="10" r="1" />
+        <circle fill="#222" cx="15" cy="10" r="1" />
+        <path fill="#FFA" d="M12 14c-2 0-3 1-3 2s1 2 3 2 3-1 3-2-1-2-3-2z" />
+    </svg>
+);
+
+const BraveIcon = ({ size = 24, className }) => (
+    <svg viewBox="0 0 24 24" width={size} height={size} className={className}>
+        <path fill="#FB542B" d="M12 2L3 7v10l9 5 9-5V7l-9-5zm0 2.5L18.5 8v8L12 19.5 5.5 16V8L12 4.5z" />
+        <path fill="#FB542B" d="M12 7l-4 2.5v5L12 17l4-2.5v-5L12 7z" />
+    </svg>
+);
+
 const quickLinks = [
     { name: 'Google', url: 'https://www.google.com', icon: GoogleIcon },
     { name: 'YouTube', url: 'https://www.youtube.com', icon: YouTubeIcon },
@@ -115,6 +140,37 @@ function NewTabPage({ onNavigate, onOpenPanel }) {
     const { settings } = useSettings() || {};
     const searchEngine = settings?.searchEngine || 'google';
 
+    // Search engine configuration for dynamic branding
+    const searchEngineConfig = {
+        google: {
+            name: 'Google',
+            icon: GoogleIcon,
+            placeholder: 'Search Google or type a URL',
+            color: '#4285F4'
+        },
+        bing: {
+            name: 'Bing',
+            icon: BingIcon,
+            placeholder: 'Search Bing or type a URL',
+            color: '#008373'
+        },
+        duckduckgo: {
+            name: 'DuckDuckGo',
+            icon: DuckDuckGoIcon,
+            placeholder: 'Search DuckDuckGo privately',
+            color: '#DE5833'
+        },
+        brave: {
+            name: 'Brave',
+            icon: BraveIcon,
+            placeholder: 'Search Brave privately',
+            color: '#FB542B'
+        }
+    };
+
+    const currentEngine = searchEngineConfig[searchEngine] || searchEngineConfig.google;
+    const SearchEngineIcon = currentEngine.icon;
+
     const handleSearch = (query) => {
         const trimmed = query.trim();
         if (!trimmed) return;
@@ -137,16 +193,16 @@ function NewTabPage({ onNavigate, onOpenPanel }) {
 
     return (
         <div className={`h-full w-full flex flex-col items-center justify-center p-8 rounded-3xl overflow-auto ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}>
-            {/* Logo */}
+            {/* Dynamic Search Engine Logo */}
             <div className="mb-8 text-center">
-                <div className={`w-16 h-16 mx-auto mb-4 rounded-full border-2 flex items-center justify-center ${theme === 'dark' ? 'border-white/20' : 'border-black/20'}`}>
-                    <Globe size={32} className={theme === 'dark' ? 'text-white' : 'text-black'} />
+                <div className="w-20 h-20 mx-auto mb-4 flex items-center justify-center">
+                    <SearchEngineIcon size={64} />
                 </div>
                 <h1 className={`text-2xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
-                    One Browser
+                    {currentEngine.name}
                 </h1>
                 <p className={`mt-1 text-sm ${theme === 'dark' ? 'text-white/50' : 'text-black/50'}`}>
-                    Privacy-first browsing
+                    Powered by One Browser
                 </p>
             </div>
 
@@ -166,7 +222,7 @@ function NewTabPage({ onNavigate, onOpenPanel }) {
                         onChange={handleInputChange}
                         onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
                         onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-                        placeholder="Search the web..."
+                        placeholder={currentEngine.placeholder}
                         className={`flex-1 bg-transparent outline-none text-base ${theme === 'dark' ? 'text-white placeholder-white/40' : 'text-black placeholder-black/40'
                             }`}
                     />
