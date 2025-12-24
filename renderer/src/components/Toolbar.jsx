@@ -11,14 +11,7 @@ const Toolbar = memo(function Toolbar({ url, onNavigate, onGoBack, onGoForward, 
     const { settings } = useSettings() || {};
     const searchEngine = settings?.searchEngine || 'google';
 
-    // DEBUG: Log search engine on mount and update
-    useEffect(() => {
-        if (window.electronAPI?.log) {
-            window.electronAPI.log(`[Toolbar] Active search engine: ${searchEngine}`);
-        } else {
-            console.log(`[Toolbar] Active search engine: ${searchEngine}`);
-        }
-    }, [searchEngine]);
+    // Debug logging removed
 
     const [inputValue, setInputValue] = useState(url);
     const [isFocused, setIsFocused] = useState(false);
@@ -28,6 +21,8 @@ const Toolbar = memo(function Toolbar({ url, onNavigate, onGoBack, onGoForward, 
     const [downloads, setDownloads] = useState([]);
     const [history, setHistory] = useState([]);
     const [bookmarks, setBookmarks] = useState([]);
+    const [aiInput, setAiInput] = useState(''); // Added missing AI input state
+    const [historySearch, setHistorySearch] = useState(''); // Added missing history search state
     const popoverRef = useRef(null);
     const suggestionsRef = useRef(null);
     const debounceRef = useRef(null);

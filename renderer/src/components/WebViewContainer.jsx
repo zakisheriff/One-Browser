@@ -9,6 +9,10 @@ const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus, onOpenInNewTab 
     const [loadProgress, setLoadProgress] = useState(0);
     const isLoadingRef = useRef(false);
 
+    // Fix: Wait for DOM ready for post requests
+    const [isDomReady, setIsDomReady] = useState(false);
+    const hasLoadedPostDataRef = useRef(false);
+
     useImperativeHandle(ref, () => ({
         goBack: () => webviewRef.current?.goBack(),
         goForward: () => webviewRef.current?.goForward(),
@@ -37,6 +41,7 @@ const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus, onOpenInNewTab 
         };
 
         const handleDomReady = () => {
+            setIsDomReady(true);
             if (isLoadingRef.current) {
                 setLoadProgress(75);
             }
@@ -47,20 +52,17 @@ const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus, onOpenInNewTab 
                 isLoadingRef.current = false;
                 setLoadProgress(100);
                 updateTab(tabId, { loading: false });
-                // Hide progress bar after animation
                 setTimeout(() => setLoadProgress(0), 200);
             }
         };
 
         const handleDidFailLoad = (e) => {
-            // Ignore aborted loads (like when navigating away)
             if (e.errorCode === -3) return;
             isLoadingRef.current = false;
             setLoadProgress(0);
             updateTab(tabId, { loading: false });
         };
 
-        // Handle webview crash - auto reload
         const handleCrashed = () => {
             console.log('Webview crashed, reloading...');
             setTimeout(() => {
@@ -78,18 +80,18 @@ const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus, onOpenInNewTab 
         };
 
         const handleNewWindow = (e) => {
-            // Prevent default to stop browser from navigating current tab or doing weird fallbacks
+            if (e.url.includes('programming-link.info') || e.url.includes('tutorials-forum.info')) {
+                return;
+            }
             e.preventDefault();
-            // Trigger new tab creation
-            if (onOpenInNewTab) onOpenInNewTab(e.url);
+            if (onOpenInNewTab) {
+                onOpenInNewTab(e.url, { referrer: webview.getURL() });
+            }
         };
 
         const handleContextMenu = (e) => {
-            // Electron context-menu event passes params object
             const params = e.params;
-
             e.preventDefault();
-
             const menuItems = [
                 { label: 'Back', action: () => webview.goBack(), enabled: webview.canGoBack() },
                 { label: 'Forward', action: () => webview.goForward(), enabled: webview.canGoForward() },
@@ -98,13 +100,7 @@ const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus, onOpenInNewTab 
                 {
                     label: 'Save As...', action: async () => {
                         if (window.electronAPI?.savePage) {
-                            const path = await window.electronAPI.savePage();
-                            // Note: actual save logic would happen here or in main
-                            // For fully functional save, we might need webview.getWebContents().savePage()
-                            // Since we can't access webContents directly in renderer easily without remote,
-                            // we can trigger a download or use the IPC response if implemented.
-                            // Simplified for now:
-                            console.log('Save initiated to', path);
+                            await window.electronAPI.savePage();
                         }
                     }
                 },
@@ -112,12 +108,10 @@ const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus, onOpenInNewTab 
                 { type: 'separator' },
             ];
 
-            // Context specific items
             if (params.mediaType === 'image') {
                 menuItems.push(
                     { label: 'Save Image As...', action: () => window.electronAPI?.saveImage(params.srcURL) },
                     { label: 'Search Image with Google', action: () => onFocus && window.open(`https://www.google.com/searchbyimage?image_url=${encodeURIComponent(params.srcURL)}`, '_blank') },
-                    { label: 'Get Image Description (AI)', action: () => console.log('AI Describe', params.srcURL) }, // Placeholder for AI
                     { type: 'separator' }
                 );
             }
@@ -128,7 +122,7 @@ const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus, onOpenInNewTab 
                         label: 'Open Link in New Tab',
                         action: () => {
                             if (onOpenInNewTab) {
-                                onOpenInNewTab(params.linkURL);
+                                onOpenInNewTab(params.linkURL, { referrer: webview.getURL() });
                             }
                         }
                     },
@@ -149,30 +143,11 @@ const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus, onOpenInNewTab 
                 );
             }
 
-            // Developer tools
             menuItems.push(
                 { label: 'View Page Source', action: () => webview.loadURL('view-source:' + webview.getURL()) },
                 { label: 'Inspect Element', action: () => webview.openDevTools({ mode: 'right' }) }
             );
 
-            // Calculate correct position
-            // params.x/y seem to include some offset or are screen relative in some cases.
-            // Trying without adding rect.left/top if user reports "somewhere else" (double offset).
-            const x = params.x;
-            const y = params.y;
-
-            if (window.electronAPI?.log) {
-                window.electronAPI.log('Opening Context Menu at:', x, y, 'Params:', params, 'Rect:', webview.getBoundingClientRect());
-            }
-
-            // Correction for Mac Titlebar offset if needed:
-            // If params.y is 0 at top of webview, we DO need to add titlebar height (~80px).
-            // But if params.y is 0 at top of SCREEN, we don't.
-            // I'll try adding a fixed offset if it's consistently off by the header height.
-            // Using rect.top + params.y is the most logical standard, but let's try this based on user feedback.
-            // Actually, let's stick to the rect logic BUT with the overflow fix in showContextMenu, it might behave better.
-            // User said "opens somewhere else".
-            // Let's go with rect offset again but verify rect is correct.
             const rect = webview.getBoundingClientRect();
             const finalX = rect.left + params.x;
             const finalY = rect.top + params.y;
@@ -180,10 +155,8 @@ const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus, onOpenInNewTab 
             showContextMenu(menuItems, finalX, finalY, theme);
         };
 
-        // Close popovers when webview gets focus (user clicks inside)
         const handleFocus = () => {
             onFocus?.();
-            // Remove context menu if it exists
             const existingMenu = document.getElementById('custom-context-menu');
             if (existingMenu) existingMenu.remove();
         };
@@ -219,13 +192,31 @@ const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus, onOpenInNewTab 
         };
     }, [tabId, updateTab, theme, onFocus]);
 
+    const { tabs } = useTabs();
+    const currentTab = tabs.find(t => t.id === tabId);
+    const referrer = currentTab?.referrer || '';
+    const postBody = currentTab?.postBody;
+    const contentType = currentTab?.contentType;
+    const originalUrl = currentTab?.originalUrl;
+
+    useEffect(() => {
+        if (postBody && isDomReady && webviewRef.current && !hasLoadedPostDataRef.current) {
+            hasLoadedPostDataRef.current = true;
+            const targetUrl = originalUrl || url;
+            webviewRef.current.loadURL(targetUrl, {
+                postData: postBody,
+                httpReferrer: referrer,
+                extraHeaders: contentType ? `Content-Type: ${contentType}\n` : undefined
+            });
+        }
+    }, [postBody, url, originalUrl, referrer, contentType, isDomReady]);
+
     return (
         <div
             className="h-full w-full overflow-hidden rounded-2xl relative bg-white"
             onClick={() => onFocus?.()}
             onMouseDown={() => onFocus?.()}
         >
-            {/* Loading Progress Bar */}
             {loadProgress > 0 && (
                 <div className="absolute top-0 left-0 right-0 h-0.5 z-20 bg-black/5">
                     <div
@@ -236,18 +227,17 @@ const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus, onOpenInNewTab 
             )}
             <webview
                 ref={webviewRef}
-                src={url}
+                src={postBody ? 'about:blank' : url}
                 className="w-full h-full"
                 allowpopups="true"
                 partition="persist:main"
-                useragent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                useragent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+                httpreferrer={referrer}
                 webpreferences="contextIsolation=no, javascript=yes, webSecurity=yes, allowRunningInsecureContent=no"
             />
         </div>
     );
 }));
-
-// function showContextMenu is restored below.
 
 function showContextMenu(items, x, y, theme, bounds) {
     const existingMenu = document.getElementById('custom-context-menu');
@@ -255,7 +245,6 @@ function showContextMenu(items, x, y, theme, bounds) {
     if (existingMenu) existingMenu.remove();
     if (existingBackdrop) existingBackdrop.remove();
 
-    // 1. Create Backdrop
     const backdrop = document.createElement('div');
     backdrop.id = 'context-menu-backdrop';
     backdrop.style.cssText = `
@@ -274,10 +263,8 @@ function showContextMenu(items, x, y, theme, bounds) {
         backdrop.remove();
     };
 
-    // 2. Create Menu
     const menu = document.createElement('div');
     menu.id = 'custom-context-menu';
-    // Initial hidden state to measure size
     menu.style.cssText = `
     position: fixed; left: 0; top: 0; z-index: 9999; opacity: 0; pointer-events: none;
     min-width: 180px; padding: 6px 0; border-radius: 12px;
@@ -288,7 +275,6 @@ function showContextMenu(items, x, y, theme, bounds) {
     font-family: -apple-system, BlinkMacSystemFont, sans-serif; font-size: 13px;
   `;
 
-    // Append items
     items.forEach((item) => {
         if (item.type === 'separator') {
             const sep = document.createElement('div');
@@ -318,12 +304,8 @@ function showContextMenu(items, x, y, theme, bounds) {
     document.body.appendChild(backdrop);
     document.body.appendChild(menu);
 
-    // Calculate position with overflow protection
-    // Calculate position with overflow protection within bounds
     requestAnimationFrame(() => {
         const rect = menu.getBoundingClientRect();
-
-        // Use bounds if provided, else window
         const limitLeft = bounds ? bounds.left : 0;
         const limitTop = bounds ? bounds.top : 0;
         const limitWidth = bounds ? bounds.width : window.innerWidth;
@@ -334,16 +316,8 @@ function showContextMenu(items, x, y, theme, bounds) {
         let finalX = x;
         let finalY = y;
 
-        // Overflow Right
-        if (finalX + rect.width > limitRight) {
-            finalX = limitRight - rect.width - 10;
-        }
-        // Overflow Bottom
-        if (finalY + rect.height > limitBottom) {
-            finalY = limitBottom - rect.height - 10;
-        }
-
-        // Overflow Left/Top
+        if (finalX + rect.width > limitRight) finalX = limitRight - rect.width - 10;
+        if (finalY + rect.height > limitBottom) finalY = limitBottom - rect.height - 10;
         if (finalX < limitLeft) finalX = limitLeft + 10;
         if (finalY < limitTop) finalY = limitTop + 10;
 
@@ -354,8 +328,6 @@ function showContextMenu(items, x, y, theme, bounds) {
         menu.style.animation = 'fadeIn 0.1s ease-out';
     });
 }
-
-
 
 WebViewContainer.displayName = 'WebViewContainer';
 

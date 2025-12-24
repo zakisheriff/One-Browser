@@ -8,6 +8,9 @@ const isDev = !app.isPackaged;
 const RENDERER_DEV_URL = 'http://localhost:5173';
 const RENDERER_PROD_PATH = path.join(__dirname, '../renderer/dist/index.html');
 
+// Hide automation flag to prevent anti-bot detection
+app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled');
+
 function createWindow(targetUrl) {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -31,12 +34,13 @@ function createWindow(targetUrl) {
   });
 
   // Configure the webview session for better compatibility
+  // Reverting to original persist:main for shared cookies/session
   const webviewSession = session.fromPartition('persist:main');
 
-  // Set a proper user agent for the webview session
-  webviewSession.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+  // Set a proper user agent for the webview session (Standard Modern Chrome)
+  webviewSession.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36');
 
-  // Handle permission requests (for things like geolocation, camera, etc.)
+  // Handle permission requests
   webviewSession.setPermissionRequestHandler((webContents, permission, callback) => {
     callback(true);
   });
@@ -58,12 +62,11 @@ function createWindow(targetUrl) {
     const entry = {
       id: downloadId,
       filename: item.getFilename(),
-      url: item.getURL(),
-      timestamp: downloadId,
+      path: item.getSavePath(),
+      receivedBytes: 0,
+      totalBytes: item.getTotalBytes(),
       state: 'progressing',
-      size: 0,
-      received: 0,
-      startTime: Date.now() // For speed/time calc
+      startTime: Date.now()
     };
     downloads.unshift(entry);
 
@@ -128,7 +131,19 @@ function createWindow(targetUrl) {
       lastNewTabUrl = details.url;
       lastNewTabTime = now;
 
-      // Send IPC to renderer to open in new tab
+      // Extract POST Data if available
+      let postBody = null;
+      let contentType = null;
+      if (details.postBody) {
+        postBody = details.postBody.data;
+        contentType = details.postBody.contentType;
+      }
+
+      // Send IPC to renderer to open in new tab (With Data!)
+      mainWindow.webContents.send('new-tab-requested', details.url, { postBody, contentType });
+      return { action: 'deny' };
+
+      // Send IPC to renderer to open in new tab (GET Check)
       mainWindow.webContents.send('new-tab-requested', details.url);
       return { action: 'deny' };
     });
@@ -482,7 +497,6 @@ ipcMain.handle('image:save', async (_, url) => {
 
       return { success: true, filePath };
     }
-    return { canceled: true };
     return { canceled: true };
   } catch (error) {
     console.error('Image save failed:', error);

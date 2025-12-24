@@ -21,7 +21,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onReloadTab: (callback) => ipcRenderer.on('tab:reload', callback),
     removeReloadTabListeners: () => ipcRenderer.removeAllListeners('tab:reload'),
 
-    onNewTabRequested: (callback) => ipcRenderer.on('new-tab-requested', (_, url) => callback(url)),
+    onNewTabRequested: (callback) => ipcRenderer.on('new-tab-requested', (_, url, data) => callback(url, data)),
     removeNewTabRequestedListeners: () => ipcRenderer.removeAllListeners('new-tab-requested'),
 
     // Bookmarks

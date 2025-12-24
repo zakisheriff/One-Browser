@@ -38,16 +38,30 @@ export function TabProvider({ children }) {
         return tabs[0].id;
     });
 
-    const addTab = useCallback((url = '', title = 'New Tab') => {
-        const newTab = { id: generateTabId(), title, url, favicon: null, loading: !!url };
+    const addTab = useCallback((url = '', title = 'New Tab', options = {}) => {
+        const newTab = {
+            id: generateTabId(),
+            title,
+            url,
+            favicon: null,
+            loading: !!url,
+            ...options // Spread options for referrer, postBody, etc.
+        };
         setTabs((prev) => [...prev, newTab]);
         setActiveTabId(newTab.id);
         return newTab.id;
     }, []);
 
     // Add a tab in the background without switching to it
-    const addTabInBackground = useCallback((url = '', title = 'New Tab') => {
-        const newTab = { id: generateTabId(), title: url ? 'Loading...' : title, url, favicon: null, loading: !!url };
+    const addTabInBackground = useCallback((url = '', title = 'New Tab', options = {}) => {
+        const newTab = {
+            id: generateTabId(),
+            title: url ? 'Loading...' : title,
+            url,
+            favicon: null,
+            loading: !!url,
+            referrer: options.referrer || null
+        };
         setTabs((prev) => [...prev, newTab]);
         return newTab.id;
     }, []);

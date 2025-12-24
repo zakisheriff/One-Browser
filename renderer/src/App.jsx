@@ -85,7 +85,7 @@ const BrowserApp = memo(function BrowserApp() {
         const handleReloadTab = () => {
             webviewRefs.current[activeTabIdRef.current]?.reload();
         };
-        const handleNewTabRequested = (url) => {
+        const handleNewTabRequested = (url, data) => {
             const now = Date.now();
             // Prevent duplicate: same URL within 2 seconds
             if (url === lastNewTabUrl && (now - lastNewTabTime) < 2000) {
@@ -94,7 +94,12 @@ const BrowserApp = memo(function BrowserApp() {
             lastNewTabUrl = url;
             lastNewTabTime = now;
 
-            if (url) addTabRef.current(url);
+            if (url) {
+                const tabData = data || {};
+                // Preserve original URL to prevent overwrite by about:blank
+                tabData.originalUrl = url;
+                addTabRef.current(url, 'New Tab', tabData);
+            }
         };
 
         window.electronAPI.onNewTab(handleNewTab);
@@ -125,19 +130,8 @@ const BrowserApp = memo(function BrowserApp() {
         const webview = webviewRefs.current[activeTabId];
         if (webview?.canGoBack()) {
             webview.goBack();
-        } else {
-            // If we can't go back, check if we are not at home
-            if (activeTab?.url) {
-                // We are at a URL but can't go back in webview history.
-                // This usually means we navigated directly here. 
-                // Navigate to home (Search Engine)
-                const homeUrl = getHomeUrl();
-                if (activeTab.url !== homeUrl) {
-                    updateTab(activeTabId, { url: homeUrl, loading: true, title: 'New Tab' });
-                }
-            }
         }
-    }, [activeTabId, activeTab, updateTab, getHomeUrl]);
+    }, [activeTabId, activeTab]);
 
     const handleGoForward = useCallback(() => {
         const webview = webviewRefs.current[activeTabId];
@@ -211,7 +205,7 @@ const BrowserApp = memo(function BrowserApp() {
                             url={tab.url || getHomeUrl()}
                             tabId={tab.id}
                             onFocus={() => setActiveTabId(tab.id)}
-                            onOpenInNewTab={(url) => addTab(url)}
+                            onOpenInNewTab={(url, options) => addTab(url, 'New Tab', options)}
                         />
                     </div>
                 ))}
