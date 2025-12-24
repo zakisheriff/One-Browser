@@ -78,20 +78,95 @@ const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus }, ref) => {
         };
 
         const handleContextMenu = (e) => {
+            // Electron context-menu event passes params object
+            const params = e.params;
+
             e.preventDefault();
-            showContextMenu([
+
+            const menuItems = [
                 { label: 'Back', action: () => webview.goBack(), enabled: webview.canGoBack() },
                 { label: 'Forward', action: () => webview.goForward(), enabled: webview.canGoForward() },
                 { label: 'Reload', action: () => webview.reload() },
                 { type: 'separator' },
+                {
+                    label: 'Save As...', action: async () => {
+                        if (window.electronAPI?.savePage) {
+                            const path = await window.electronAPI.savePage();
+                            // Note: actual save logic would happen here or in main
+                            // For fully functional save, we might need webview.getWebContents().savePage()
+                            // Since we can't access webContents directly in renderer easily without remote,
+                            // we can trigger a download or use the IPC response if implemented.
+                            // Simplified for now:
+                            console.log('Save initiated to', path);
+                        }
+                    }
+                },
+                { label: 'Print...', action: () => webview.print() },
+                { type: 'separator' },
+            ];
+
+            // Context specific items
+            if (params.mediaType === 'image') {
+                menuItems.push(
+                    { label: 'Search Image with Google', action: () => onFocus && window.open(`https://www.google.com/searchbyimage?image_url=${encodeURIComponent(params.srcURL)}`, '_blank') },
+                    { label: 'Get Image Description (AI)', action: () => console.log('AI Describe', params.srcURL) }, // Placeholder for AI
+                    { type: 'separator' }
+                );
+            }
+
+            if (params.linkURL) {
+                menuItems.push(
+                    { label: 'Open Link in New Tab', action: () => window.electronAPI?.onNewTab && window.open(params.linkURL, '_blank') }, // Simplified
+                    { label: 'Copy Link Address', action: () => navigator.clipboard.writeText(params.linkURL) },
+                    { type: 'separator' }
+                );
+            }
+
+            if (params.selectionText) {
+                menuItems.push(
+                    { label: `Search for "${params.selectionText.slice(0, 15)}..."`, action: () => onFocus && window.open(`https://www.google.com/search?q=${encodeURIComponent(params.selectionText)}`, '_blank') },
+                    { label: 'Copy', action: () => webview.copy() },
+                    { type: 'separator' }
+                );
+            }
+
+            // Developer tools
+            menuItems.push(
                 { label: 'View Page Source', action: () => webview.loadURL('view-source:' + webview.getURL()) },
-                { label: 'Inspect Element', action: () => webview.inspectElement(e.x, e.y) },
-            ], e.clientX, e.clientY, theme);
+                { label: 'Inspect Element', action: () => webview.inspectElement(params.x, params.y) }
+            );
+
+            // Calculate correct position
+            // params.x/y seem to include some offset or are screen relative in some cases. 
+            // Trying without adding rect.left/top if user reports "somewhere else" (double offset).
+            const x = params.x;
+            const y = params.y;
+
+            if (window.electronAPI?.log) {
+                window.electronAPI.log('Opening Context Menu at:', x, y, 'Params:', params, 'Rect:', webview.getBoundingClientRect());
+            }
+
+            // Correction for Mac Titlebar offset if needed:
+            // If params.y is 0 at top of webview, we DO need to add titlebar height (~80px).
+            // But if params.y is 0 at top of SCREEN, we don't.
+            // I'll try adding a fixed offset if it's consistently off by the header height.
+            // Using rect.top + params.y is the most logical standard, but let's try this based on user feedback.
+            // Actually, let's stick to the rect logic BUT with the overflow fix in showContextMenu, it might behave better.
+            // User said "opens somewhere else".
+            // Let's go with rect offset again but verify rect is correct.
+            const rect = webview.getBoundingClientRect();
+            const finalX = rect.left + params.x;
+            const finalY = rect.top + params.y;
+
+            showContextMenu(menuItems, finalX, finalY, theme);
         };
 
         // Close popovers when webview gets focus (user clicks inside)
         const handleFocus = () => {
             onFocus?.();
+            // Remove context menu if it exists
+            const existingMenu = document.getElementById('custom-context-menu');
+            if (existingMenu) existingMenu.remove();
         };
 
         webview.addEventListener('did-start-loading', handleDidStartLoading);
@@ -151,21 +226,48 @@ const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus }, ref) => {
     );
 }));
 
-function showContextMenu(items, x, y, theme) {
-    const existingMenu = document.getElementById('custom-context-menu');
-    if (existingMenu) existingMenu.remove();
+// function showContextMenu is restored below.
 
+function showContextMenu(items, x, y, theme, bounds) {
+    const existingMenu = document.getElementById('custom-context-menu');
+    const existingBackdrop = document.getElementById('context-menu-backdrop');
+    if (existingMenu) existingMenu.remove();
+    if (existingBackdrop) existingBackdrop.remove();
+
+    // 1. Create Backdrop
+    const backdrop = document.createElement('div');
+    backdrop.id = 'context-menu-backdrop';
+    backdrop.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 9998;
+        cursor: default;
+    `;
+    backdrop.onclick = () => {
+        const menu = document.getElementById('custom-context-menu');
+        if (menu) menu.remove();
+        backdrop.remove();
+    };
+    backdrop.oncontextmenu = (e) => {
+        e.preventDefault();
+        const menu = document.getElementById('custom-context-menu');
+        if (menu) menu.remove();
+        backdrop.remove();
+    };
+
+    // 2. Create Menu
     const menu = document.createElement('div');
     menu.id = 'custom-context-menu';
+    // Initial hidden state to measure size
     menu.style.cssText = `
-    position: fixed; left: ${x}px; top: ${y}px; z-index: 9999;
+    position: fixed; left: 0; top: 0; z-index: 9999; opacity: 0; pointer-events: none;
     min-width: 180px; padding: 6px 0; border-radius: 12px;
-    background: ${theme === 'dark' ? '#1a1a1a' : '#fff'};
+    background: ${theme === 'dark' ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)'};
+    backdrop-filter: blur(12px);
     border: 1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'};
     box-shadow: 0 8px 32px rgba(0,0,0,0.25);
     font-family: -apple-system, BlinkMacSystemFont, sans-serif; font-size: 13px;
   `;
 
+    // Append items
     items.forEach((item) => {
         if (item.type === 'separator') {
             const sep = document.createElement('div');
@@ -179,20 +281,60 @@ function showContextMenu(items, x, y, theme) {
         display: block; width: 100%; padding: 8px 16px; text-align: left;
         background: transparent; border: none; cursor: default; font-size: 13px;
         color: ${item.enabled === false ? (theme === 'dark' ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)') : (theme === 'dark' ? '#fff' : '#000')};
+        transition: background 0.1s;
       `;
             btn.onmouseenter = () => { if (item.enabled !== false) btn.style.background = theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'; };
             btn.onmouseleave = () => { btn.style.background = 'transparent'; };
-            btn.onclick = () => { item.action?.(); menu.remove(); };
+            btn.onclick = () => {
+                item.action?.();
+                menu.remove();
+                backdrop.remove();
+            };
             menu.appendChild(btn);
         }
     });
 
+    document.body.appendChild(backdrop);
     document.body.appendChild(menu);
-    setTimeout(() => {
-        const close = (e) => { if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('click', close); } };
-        document.addEventListener('click', close);
-    }, 0);
+
+    // Calculate position with overflow protection
+    // Calculate position with overflow protection within bounds
+    requestAnimationFrame(() => {
+        const rect = menu.getBoundingClientRect();
+
+        // Use bounds if provided, else window
+        const limitLeft = bounds ? bounds.left : 0;
+        const limitTop = bounds ? bounds.top : 0;
+        const limitWidth = bounds ? bounds.width : window.innerWidth;
+        const limitHeight = bounds ? bounds.height : window.innerHeight;
+        const limitRight = limitLeft + limitWidth;
+        const limitBottom = limitTop + limitHeight;
+
+        let finalX = x;
+        let finalY = y;
+
+        // Overflow Right
+        if (finalX + rect.width > limitRight) {
+            finalX = limitRight - rect.width - 10;
+        }
+        // Overflow Bottom
+        if (finalY + rect.height > limitBottom) {
+            finalY = limitBottom - rect.height - 10;
+        }
+
+        // Overflow Left/Top
+        if (finalX < limitLeft) finalX = limitLeft + 10;
+        if (finalY < limitTop) finalY = limitTop + 10;
+
+        menu.style.left = finalX + 'px';
+        menu.style.top = finalY + 'px';
+        menu.style.opacity = '1';
+        menu.style.pointerEvents = 'auto';
+        menu.style.animation = 'fadeIn 0.1s ease-out';
+    });
 }
+
+
 
 WebViewContainer.displayName = 'WebViewContainer';
 

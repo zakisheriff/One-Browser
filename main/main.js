@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu, Tray, session, net } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, Tray, session, net, dialog } = require('electron');
 const path = require('path');
 
 let mainWindow;
@@ -225,6 +225,73 @@ ipcMain.handle('search:suggestions', async (_, query) => {
   } catch (e) {
     return [];
   }
+});
+
+// Settings persistence
+const fs = require('fs');
+const settingsPath = path.join(app.getPath('userData'), 'settings.json');
+
+// Load settings helper
+function loadSettings() {
+  try {
+    if (fs.existsSync(settingsPath)) {
+      const data = fs.readFileSync(settingsPath, 'utf8');
+      return JSON.parse(data);
+    }
+  } catch (e) {
+    console.error('Failed to load settings:', e);
+  }
+  return null;
+}
+
+// Save settings helper
+function saveSettings(settings) {
+  try {
+    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
+  } catch (e) {
+    console.error('Failed to save settings:', e);
+  }
+}
+
+ipcMain.handle('settings:get', () => loadSettings());
+ipcMain.handle('settings:save', (_, settings) => {
+  saveSettings(settings);
+  return true;
+});
+
+ipcMain.handle('log', (_, message) => {
+  console.log('[Renderer]:', ...message);
+});
+
+// Advanced Page Actions
+ipcMain.handle('page:print', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  // For webview, we might need to target the webview's webContents, but 
+  // currently we are invoking this from the renderer which hosts the webview.
+  // The actual printing logic for the *content* of the webview is best handled 
+  // via the webview instance methods in the renderer.
+  // However, this handler is here if we need to print the app window or proxy.
+  // The plan specified webContents.print() which is available directly on the <webview> tag in renderer.
+  // So these IPCs might be redundant if we just use the webview reference in React.
+  // But let's keep them for structural completeness as requested.
+  // Actually, for "Save As", we need main process dialog.
+  win.webContents.print();
+});
+
+ipcMain.handle('page:save', async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const { filePath } = await dialog.showSaveDialog(win, {
+    defaultPath: 'page.html',
+    filters: [{ name: 'Web Page', extensions: ['html'] }]
+  });
+
+  if (filePath) {
+    // Again, saving the *webview* content usually requires calling savePage on the webview element.
+    // The main process savePage saves the *host* window.
+    // We will return the path to the renderer so the renderer can call webview.savePage().
+    return filePath;
+  }
+  return null;
 });
 
 // App lifecycle

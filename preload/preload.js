@@ -27,4 +27,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // Search suggestions
     getSuggestions: (query) => ipcRenderer.invoke('search:suggestions', query),
+
+    // Advanced Page Actions
+    savePage: () => ipcRenderer.invoke('page:save'),
+    printPage: () => ipcRenderer.invoke('page:print'),
+
+    // Debugging
+    log: (...args) => ipcRenderer.invoke('log', args),
+
+    // Settings
+    getSettings: () => ipcRenderer.invoke('settings:get'),
+    saveSettings: (settings) => ipcRenderer.invoke('settings:save', settings),
 });

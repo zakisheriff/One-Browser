@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
-const Toolbar = memo(function Toolbar({ url, onNavigate, onGoBack, onGoForward, onReload, onStop, isLoading, closePopoversRef }) {
+const Toolbar = memo(function Toolbar({ url, onNavigate, onGoBack, onGoForward, onReload, onStop, isLoading, closePopoversRef, onOpenSettings }) {
     const { theme, toggleTheme } = useTheme();
     const [inputValue, setInputValue] = useState(url);
     const [isFocused, setIsFocused] = useState(false);
@@ -394,7 +394,14 @@ const Toolbar = memo(function Toolbar({ url, onNavigate, onGoBack, onGoForward, 
                                 <button className={menuItemClass}><Eye size={16} />Developer Tools</button>
                                 <button className={menuItemClass}><EyeOff size={16} />New Incognito Window</button>
                                 <div className={`my-1 h-px mx-3 ${theme === 'dark' ? 'bg-white/10' : 'bg-black/10'}`} />
-                                <button className={menuItemClass}><Settings size={16} />Settings</button>
+                                <button className={menuItemClass} onClick={() => {
+                                    if (window.electronAPI?.log) window.electronAPI.log('Toolbar: Settings Clicked');
+                                    console.log('Toolbar: Settings Clicked');
+                                    onOpenSettings?.();
+                                    setActivePopover(null);
+                                }}>
+                                    <Settings size={16} />Settings
+                                </button>
                                 <button className={menuItemClass}><Info size={16} />About One Browser</button>
                             </div>
                         </div>

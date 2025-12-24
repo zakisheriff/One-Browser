@@ -4,12 +4,15 @@ import TabBar from './components/TabBar';
 import Toolbar from './components/Toolbar';
 import WebViewContainer from './components/WebViewContainer';
 import NewTabPage from './components/NewTabPage';
+import SettingsModal from './components/SettingsModal';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { TabProvider, useTabs } from './context/TabContext';
+import { SettingsProvider } from './context/SettingsContext';
 
 const BrowserApp = memo(function BrowserApp() {
     const { theme } = useTheme();
     const { tabs, activeTabId, addTab, removeTab, updateTab } = useTabs();
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
     const webviewRefs = useRef({});
     const closePopoversRef = useRef(null);
@@ -73,7 +76,14 @@ const BrowserApp = memo(function BrowserApp() {
     }, []);
 
     const handleOpenPanel = useCallback((panel) => {
-        closePopoversRef.current?.open?.(panel);
+        console.log('handleOpenPanel:', panel);
+        if (panel === 'settings') {
+            console.log('Opening settings modal');
+            setIsSettingsOpen(true);
+            closePopoversRef.current?.close?.();
+        } else {
+            closePopoversRef.current?.open?.(panel);
+        }
     }, []);
 
     return (
@@ -95,6 +105,8 @@ const BrowserApp = memo(function BrowserApp() {
                 ))}
             </div>
 
+
+
             <Toolbar
                 url={activeTab?.url || ''}
                 onNavigate={handleNavigate}
@@ -104,22 +116,35 @@ const BrowserApp = memo(function BrowserApp() {
                 onStop={handleStop}
                 isLoading={activeTab?.loading || false}
                 closePopoversRef={closePopoversRef}
+                onOpenSettings={() => {
+                    console.log('App: Opening Settings');
+                    if (window.electronAPI?.log) window.electronAPI.log('App: Opening Settings');
+                    setIsSettingsOpen(true);
+                }}
             />
 
             <div className="py-2 px-2">
                 <TabBar />
             </div>
+
+            <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
         </div>
     );
 });
 
+import ErrorBoundary from './components/ErrorBoundary';
+
 function App() {
     return (
-        <ThemeProvider>
-            <TabProvider>
-                <BrowserApp />
-            </TabProvider>
-        </ThemeProvider>
+        <ErrorBoundary>
+            <SettingsProvider>
+                <ThemeProvider>
+                    <TabProvider>
+                        <BrowserApp />
+                    </TabProvider>
+                </ThemeProvider>
+            </SettingsProvider>
+        </ErrorBoundary>
     );
 }
 
