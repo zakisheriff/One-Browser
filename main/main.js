@@ -51,6 +51,10 @@ function createWindow() {
     });
 
     const downloadId = Date.now();
+
+    // Track active item
+    activeDownloads.set(downloadId, item);
+
     const entry = {
       id: downloadId,
       filename: item.getFilename(),
@@ -58,7 +62,8 @@ function createWindow() {
       timestamp: downloadId,
       state: 'progressing',
       size: 0,
-      received: 0
+      received: 0,
+      startTime: Date.now() // For speed/time calc
     };
     downloads.unshift(entry);
 
@@ -68,25 +73,30 @@ function createWindow() {
         downloads[idx].state = state;
         downloads[idx].received = item.getReceivedBytes();
         downloads[idx].size = item.getTotalBytes();
+
+        // Emit progress to renderer
+        mainWindow?.webContents.send('download-progress', downloads[idx]);
       }
+
       if (state === 'interrupted') {
         console.log('Download is interrupted but can be resumed');
       } else if (state === 'progressing') {
-        if (item.isPaused()) {
-          console.log('Download is paused');
-        } else {
-          console.log(`Received bytes: ${item.getReceivedBytes()}`);
-        }
+        // Progress
       }
     });
 
     item.once('done', (event, state) => {
+      // Remove from active map
+      activeDownloads.delete(downloadId);
+
       const idx = downloads.findIndex(d => d.id === downloadId);
       if (idx !== -1) {
-        downloads[idx].state = state;
+        downloads[idx].state = state; // 'completed', 'cancelled', 'interrupted'
         if (state === 'completed') {
           downloads[idx].path = item.getSavePath();
         }
+        // Emit final state
+        mainWindow?.webContents.send('download-progress', downloads[idx]);
       }
       if (state === 'completed') {
         console.log('Download successfully');
@@ -99,6 +109,15 @@ function createWindow() {
   // Show window when ready to prevent blank flash
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
+  });
+
+  // Intercept new window events from WebViews
+  mainWindow.webContents.on('did-attach-webview', (event, webContents) => {
+    webContents.setWindowOpenHandler((details) => {
+      // Send IPC to renderer to open in new tab
+      mainWindow.webContents.send('new-tab-requested', details.url);
+      return { action: 'deny' };
+    });
   });
 
   // Load the renderer
@@ -316,52 +335,112 @@ ipcMain.handle('settings:save', (_, settings) => {
 
 // Downloads storage
 let downloads = [];
+const activeDownloads = new Map(); // Track active DownloadItems by ID
+
 ipcMain.handle('downloads:get', () => downloads);
+
+ipcMain.handle('downloads:cancel', (_, id) => {
+  const item = activeDownloads.get(id);
+  if (item) {
+    item.cancel();
+    return true;
+  }
+  return false;
+});
+
+ipcMain.handle('downloads:remove', (_, id) => {
+  downloads = downloads.filter(d => d.id !== id);
+  return downloads;
+});
+
+ipcMain.handle('downloads:clear', () => {
+  // Keep only progressing downloads
+  downloads = downloads.filter(d => d.state === 'progressing');
+  return downloads;
+});
 
 ipcMain.handle('image:save', async (_, url) => {
   try {
     const { nativeImage } = require('electron');
-    const response = await net.fetch(url);
-    const buffer = await response.arrayBuffer();
-    const image = nativeImage.createFromBuffer(Buffer.from(buffer));
+    // Check if SVG before fetching if possible, or check extension
+    // We just want to extract filename properly first
 
-    const win = BrowserWindow.getFocusedWindow();
-    const { filePath } = await dialog.showSaveDialog(win, {
-      title: 'Save Image As',
-      defaultPath: 'image.png',
-      filters: [
-        { name: 'PNG', extensions: ['png'] },
-        { name: 'JPEG', extensions: ['jpg', 'jpeg'] },
-        { name: 'All Files', extensions: ['*'] }
-      ]
-    });
+    let defaultName = 'image.png';
+    let isSvg = false;
 
-    if (!filePath) return false;
+    try {
+      if (url.startsWith('data:image/svg+xml')) {
+        isSvg = true;
+        defaultName = `image-${Date.now()}.svg`;
+      } else if (url.startsWith('data:image/')) {
+        const mime = url.split(';')[0].split(':')[1];
+        const ext = mime.split('/')[1] || 'png';
+        defaultName = `image-${Date.now()}.${ext}`;
+      } else {
+        const urlObj = new URL(url);
+        const pathname = urlObj.pathname;
+        const base = path.basename(pathname);
+        if (base && base.length > 0) {
+          defaultName = decodeURIComponent(base);
+        }
 
-    let dataToSave;
-    if (filePath.toLowerCase().endsWith('.jpg') || filePath.toLowerCase().endsWith('.jpeg')) {
-      dataToSave = image.toJPEG(90);
-    } else {
-      dataToSave = image.toPNG();
+        // Check if it's explicitly an svg extension
+        if (defaultName.toLowerCase().endsWith('.svg')) {
+          isSvg = true;
+        } else if (!path.extname(defaultName)) {
+          // If no extension, default to png (unless we detect svg later, but for now safe)
+          defaultName += '.png';
+        }
+      }
+    } catch (e) {
+      console.error('Filename extraction failed:', e);
     }
 
-    fs.writeFileSync(filePath, dataToSave);
+    const win = BrowserWindow.getFocusedWindow();
+    const saveOptions = {
+      title: 'Save Image As',
+      defaultPath: defaultName
+    };
 
-    // Add to downloads list
-    const filename = path.basename(filePath);
-    downloads.unshift({
-      filename,
-      path: filePath,
-      url,
-      state: 'completed',
-      timestamp: Date.now(),
-      size: dataToSave.length
-    });
+    if (isSvg) {
+      saveOptions.filters = [
+        { name: 'SVG Image', extensions: ['svg'] },
+        { name: 'All Files', extensions: ['*'] }
+      ];
+    } else {
+      saveOptions.filters = [
+        { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'] },
+        { name: 'All Files', extensions: ['*'] }
+      ];
+    }
 
-    return true;
-  } catch (e) {
-    console.error('Image save failed:', e);
-    return false;
+    const { filePath } = await dialog.showSaveDialog(win, saveOptions);
+
+    if (filePath) {
+      const response = await net.fetch(url);
+      const buffer = await response.arrayBuffer();
+
+      require('fs').writeFileSync(filePath, Buffer.from(buffer));
+
+      // Add to downloads list so it shows in UI
+      const filename = path.basename(filePath);
+      downloads.unshift({
+        id: Date.now().toString(), // Ensure ID is string for consistency
+        filename,
+        path: filePath,
+        url,
+        state: 'completed',
+        timestamp: Date.now(),
+        size: buffer.byteLength,
+        received: buffer.byteLength
+      });
+
+      return { success: true, filePath };
+    }
+    return { canceled: true };
+  } catch (error) {
+    console.error('Image save failed:', error);
+    return { error: error.message };
   }
 });
 

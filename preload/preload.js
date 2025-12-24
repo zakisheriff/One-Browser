@@ -11,8 +11,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // Tab events from main process
     onNewTab: (callback) => ipcRenderer.on('new-tab', callback),
-    onCloseTab: (callback) => ipcRenderer.on('close-tab', callback),
-    onReloadTab: (callback) => ipcRenderer.on('reload-tab', callback),
+    onCloseTab: (callback) => ipcRenderer.on('tab:close', callback),
+    onReloadTab: (callback) => ipcRenderer.on('tab:reload', callback),
+    onNewTabRequested: (callback) => ipcRenderer.on('new-tab-requested', (_, url) => callback(url)),
+
 
     // Bookmarks
     getBookmarks: () => ipcRenderer.invoke('bookmarks:get'),
@@ -42,4 +44,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Downloads
     getDownloads: () => ipcRenderer.invoke('downloads:get'),
     saveImage: (url) => ipcRenderer.invoke('image:save', url),
+    cancelDownload: (id) => ipcRenderer.invoke('downloads:cancel', id),
+    removeDownload: (id) => ipcRenderer.invoke('downloads:remove', id),
+    clearDownloads: () => ipcRenderer.invoke('downloads:clear'),
+    onDownloadProgress: (callback) => ipcRenderer.on('download-progress', (_, data) => callback(data)),
 });

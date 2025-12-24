@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useImperativeHandle, forwardRef, memo, useSta
 import { useTabs } from '../context/TabContext';
 import { useTheme } from '../context/ThemeContext';
 
-const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus }, ref) => {
+const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus, onOpenInNewTab }, ref) => {
     const webviewRef = useRef(null);
     const { updateTab } = useTabs();
     const { theme } = useTheme();
@@ -77,6 +77,17 @@ const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus }, ref) => {
             window.electronAPI?.addHistory({ url: e.url, title: webview.getTitle() });
         };
 
+        const handleNewWindow = (e) => {
+            // Prevent the default behavior (opening a new window)
+            e.preventDefault();
+            const protocol = new URL(e.url).protocol;
+            if (protocol === 'http:' || protocol === 'https:') {
+                if (onOpenInNewTab) {
+                    onOpenInNewTab(e.url);
+                }
+            }
+        };
+
         const handleContextMenu = (e) => {
             // Electron context-menu event passes params object
             const params = e.params;
@@ -117,7 +128,7 @@ const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus }, ref) => {
 
             if (params.linkURL) {
                 menuItems.push(
-                    { label: 'Open Link in New Tab', action: () => window.electronAPI?.onNewTab && window.open(params.linkURL, '_blank') }, // Simplified
+                    { label: 'Open Link in New Tab', action: () => window.open(params.linkURL, '_blank') },
                     { label: 'Copy Link Address', action: () => navigator.clipboard.writeText(params.linkURL) },
                     { type: 'separator' }
                 );
@@ -182,6 +193,8 @@ const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus }, ref) => {
         webview.addEventListener('focus', handleFocus);
         webview.addEventListener('crashed', handleCrashed);
         webview.addEventListener('render-process-gone', handleCrashed);
+        webview.addEventListener('new-window', handleNewWindow);
+
 
         return () => {
             webview.removeEventListener('did-start-loading', handleDidStartLoading);

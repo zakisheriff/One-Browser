@@ -25,6 +25,10 @@ const BrowserApp = memo(function BrowserApp() {
             window.electronAPI.onNewTab(() => addTab());
             window.electronAPI.onCloseTab(() => { if (activeTabId) removeTab(activeTabId); });
             window.electronAPI.onReloadTab(() => { webviewRefs.current[activeTabId]?.reload(); });
+            // Handle new tab requests from webviews (intercepted by main process)
+            window.electronAPI.onNewTabRequested && window.electronAPI.onNewTabRequested((url) => {
+                if (url) addTab(url);
+            });
         }
     }, [activeTabId, addTab, removeTab]);
 
@@ -61,7 +65,9 @@ const BrowserApp = memo(function BrowserApp() {
             updateTab(activeTabId, { url: activeTab.lastUrl, loading: true, title: 'Loading...', lastUrl: null });
         }
     }, [activeTabId, activeTab, updateTab]);
+
     const handleReload = useCallback(() => webviewRefs.current[activeTabId]?.reload(), [activeTabId]);
+
     const handleStop = useCallback(() => {
         webviewRefs.current[activeTabId]?.stop();
         updateTab(activeTabId, { loading: false });
@@ -77,9 +83,7 @@ const BrowserApp = memo(function BrowserApp() {
     }, []);
 
     const handleOpenPanel = useCallback((panel) => {
-        console.log('handleOpenPanel:', panel);
         if (panel === 'settings') {
-            console.log('Opening settings modal');
             setIsSettingsOpen(true);
             closePopoversRef.current?.close?.();
         } else {
@@ -116,6 +120,7 @@ const BrowserApp = memo(function BrowserApp() {
                 </>
             )}
 
+            {/* MAIN CONTENT */}
             <div
                 className={`flex-1 relative overflow-hidden mx-3 rounded-2xl border ${theme === 'dark' ? 'border-white/10' : 'border-black/10'}`}
                 onClick={handleContentClick}
@@ -123,7 +128,12 @@ const BrowserApp = memo(function BrowserApp() {
                 {tabs.map((tab) => (
                     <div key={tab.id} className={`absolute inset-0 ${tab.id === activeTabId ? 'z-10' : 'z-0 pointer-events-none opacity-0'}`}>
                         {tab.url ? (
-                            <WebViewContainer ref={(ref) => setWebviewRef(tab.id, ref)} url={tab.url} tabId={tab.id} onFocus={handleContentClick} />
+                            <WebViewContainer
+                                ref={(ref) => setWebviewRef(tab.id, ref)}
+                                url={tab.url}
+                                tabId={tab.id}
+                                onFocus={handleContentClick}
+                            />
                         ) : (
                             tab.id === activeTabId && <NewTabPage onNavigate={handleNavigate} onOpenPanel={handleOpenPanel} />
                         )}
@@ -132,29 +142,31 @@ const BrowserApp = memo(function BrowserApp() {
             </div>
 
             {/* BOTTOM TOOLBAR & TABS */}
-            {!isTop && (
-                <>
-                    <div className="py-2 px-2">
-                        <TabBar />
-                    </div>
-                    <Toolbar
-                        url={activeTab?.url || ''}
-                        onNavigate={handleNavigate}
-                        onGoBack={handleGoBack}
-                        onGoForward={handleGoForward}
-                        onReload={handleReload}
-                        onStop={handleStop}
-                        isLoading={activeTab?.loading || false}
-                        closePopoversRef={closePopoversRef}
-                        onOpenSettings={() => {
-                            setIsSettingsOpen(true);
-                        }}
-                    />
-                </>
-            )}
+            {
+                !isTop && (
+                    <>
+                        <div className="py-2 px-2">
+                            <TabBar />
+                        </div>
+                        <Toolbar
+                            url={activeTab?.url || ''}
+                            onNavigate={handleNavigate}
+                            onGoBack={handleGoBack}
+                            onGoForward={handleGoForward}
+                            onReload={handleReload}
+                            onStop={handleStop}
+                            isLoading={activeTab?.loading || false}
+                            closePopoversRef={closePopoversRef}
+                            onOpenSettings={() => {
+                                setIsSettingsOpen(true);
+                            }}
+                        />
+                    </>
+                )
+            }
 
             <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
-        </div>
+        </div >
     );
 });
 
