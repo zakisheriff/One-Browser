@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, memo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, memo, useCallback, forwardRef, useImperativeHandle } from 'react';
 import {
     ArrowLeft, ArrowRight, RotateCw, X as StopIcon, Home, Star, Download,
     Clock, Puzzle, Sparkles, Sun, Moon, Shield, MoreVertical, Settings, Info, Eye, EyeOff, Search, Trash2
@@ -6,7 +6,7 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import { useSettings } from '../context/SettingsContext';
 
-const Toolbar = memo(function Toolbar({ url, onNavigate, onGoBack, onGoForward, onReload, onStop, isLoading, closePopoversRef, onOpenSettings }) {
+const Toolbar = memo(forwardRef(function Toolbar({ url, onNavigate, onGoBack, onGoForward, onReload, onStop, isLoading, closePopoversRef, onOpenSettings }, ref) {
     const { theme, toggleTheme } = useTheme();
     const { settings } = useSettings() || {};
     const searchEngine = settings?.searchEngine || 'google';
@@ -126,28 +126,35 @@ const Toolbar = memo(function Toolbar({ url, onNavigate, onGoBack, onGoForward, 
                     }
                 });
             });
-            // Cleanup not explicitly available in my simple preload wrapper, 
-            // but relying on component unmount is fine if we had an off method.
-            // For now, we just let it be or invalidating it might be tricky without a proper 'off'.
-            // Given the simple architecture, this is acceptable for the prototype phase.
             return () => { };
         }
     }, []);
 
     // Expose close and open functions to parent
-    useEffect(() => {
-        if (closePopoversRef) {
-            closePopoversRef.current = {
-                close: () => {
-                    setActivePopover(null);
-                    setShowSuggestions(false);
-                },
-                open: (panel) => {
-                    setActivePopover(panel);
-                }
-            };
+    useImperativeHandle(closePopoversRef, () => ({
+        close: () => {
+            setActivePopover(null);
+            setShowSuggestions(false);
+        },
+        open: (panel) => {
+            setActivePopover(panel);
         }
-    }, [closePopoversRef]);
+    }));
+
+    // Fallback in case parent passes a ref object directly not used via useImperativeHandle logic by Parent?
+    // Actually, App.jsx uses closePopoversRef.current?.close?().
+    // The useImperativeHandle hook handles binding the return object to closePopoversRef.current.
+    // However, App.jsx passes it as a PROP "closePopoversRef", NOT as the forwarded ref "ref".
+    // Wait, if App.jsx passes it as a prop, then `useImperativeHandle` requires the FIRST argument to be the ref.
+    // If I use `ref` from forwardRef, I should access that.
+    // BUT App.jsx passes `<Toolbar closePopoversRef={closePopoversRef} ... />`.
+    // So `closePopoversRef` IS AVAILABLE AS A PROP.
+    // `useImperativeHandle(closePopoversRef, ...)` is correct IF closePopoversRef is a ref object.
+    // The `ref` argument from forwardRef is usually for when `<Toolbar ref={myRef} />`.
+    // Since App.jsx passes it explicitly as a prop, I don't strictly *need* forwardRef if I just use the prop.
+    // BUT `useImperativeHandle` is designed to work with the `ref` passed to `forwardRef`.
+    // Can I use it with a prop ref? Yes.
+    // So the implementation below is fine: `useImperativeHandle(closePopoversRef, ...)` works.
 
     useEffect(() => {
         const handleClickOutside = (e) => {
@@ -458,7 +465,12 @@ const Toolbar = memo(function Toolbar({ url, onNavigate, onGoBack, onGoForward, 
 
                 <div className="relative">
                     <button onClick={() => togglePopover('downloads')} className={activeBtnClass('downloads')} title="Downloads">
-                        <Download size={18} />
+                        <div className="relative">
+                            <Download size={18} />
+                            {downloads.some(d => d.state === 'progressing') && (
+                                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-[#1e1e1e]" />
+                            )}
+                        </div>
                     </button>
                     {activePopover === 'downloads' && (
                         <div className={popoverClass}>
@@ -550,6 +562,7 @@ const Toolbar = memo(function Toolbar({ url, onNavigate, onGoBack, onGoForward, 
                                                             formatBytes(d.size)
                                                         }
                                                     </span>
+                                                    {isProgressing && d.speed && <span className="text-blue-500 font-medium">{d.speed}</span>}
                                                     {isProgressing && <span>{timeRemaining}</span>}
                                                 </div>
                                             </div>
@@ -623,6 +636,6 @@ const Toolbar = memo(function Toolbar({ url, onNavigate, onGoBack, onGoForward, 
             </div>
         </div>
     );
-});
+}));
 
 export default Toolbar;

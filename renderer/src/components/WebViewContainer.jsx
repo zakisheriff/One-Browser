@@ -22,6 +22,15 @@ const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus, onOpenInNewTab 
         canGoForward: () => webviewRef.current?.canGoForward() || false,
     }));
 
+    // Define handleFocus in component scope to avoid closure/reference issues
+    const handleFocus = useCallback(() => {
+        onFocus?.();
+        const existingMenu = document.getElementById('custom-context-menu');
+        if (existingMenu) existingMenu.remove();
+        const backdrop = document.getElementById('context-menu-backdrop');
+        if (backdrop) backdrop.remove();
+    }, [onFocus]);
+
     useEffect(() => {
         const webview = webviewRef.current;
         if (!webview) return;
@@ -37,13 +46,6 @@ const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus, onOpenInNewTab 
         const handleLoadCommit = () => {
             if (isLoadingRef.current) {
                 setLoadProgress(40);
-            }
-        };
-
-        const handleDomReady = () => {
-            setIsDomReady(true);
-            if (isLoadingRef.current) {
-                setLoadProgress(75);
             }
         };
 
@@ -155,10 +157,11 @@ const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus, onOpenInNewTab 
             showContextMenu(menuItems, finalX, finalY, theme);
         };
 
-        const handleFocus = () => {
-            onFocus?.();
-            const existingMenu = document.getElementById('custom-context-menu');
-            if (existingMenu) existingMenu.remove();
+        const handleDomReady = () => {
+            setIsDomReady(true);
+            if (isLoadingRef.current) {
+                setLoadProgress(75);
+            }
         };
 
         webview.addEventListener('did-start-loading', handleDidStartLoading);
@@ -190,7 +193,7 @@ const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus, onOpenInNewTab 
             webview.removeEventListener('render-process-gone', handleCrashed);
             webview.removeEventListener('new-window', handleNewWindow);
         };
-    }, [tabId, updateTab, theme, onFocus]);
+    }, [tabId, updateTab, theme, onFocus, onOpenInNewTab, handleFocus]);
 
     const { tabs } = useTabs();
     const currentTab = tabs.find(t => t.id === tabId);
@@ -214,8 +217,8 @@ const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus, onOpenInNewTab 
     return (
         <div
             className="h-full w-full overflow-hidden rounded-2xl relative bg-white"
-            onClick={() => onFocus?.()}
-            onMouseDown={() => onFocus?.()}
+            onClick={handleFocus}
+            onMouseDown={handleFocus}
         >
             {loadProgress > 0 && (
                 <div className="absolute top-0 left-0 right-0 h-0.5 z-20 bg-black/5">
@@ -266,13 +269,14 @@ function showContextMenu(items, x, y, theme, bounds) {
     const menu = document.createElement('div');
     menu.id = 'custom-context-menu';
     menu.style.cssText = `
-    position: fixed; left: 0; top: 0; z-index: 9999; opacity: 0; pointer-events: none;
+    position: fixed; left: 0; top: 0; z-index: 9999; opacity: 1; pointer-events: auto;
     min-width: 180px; padding: 6px 0; border-radius: 12px;
     background: ${theme === 'dark' ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)'};
     backdrop-filter: blur(12px);
     border: 1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'};
     box-shadow: 0 8px 32px rgba(0,0,0,0.25);
     font-family: -apple-system, BlinkMacSystemFont, sans-serif; font-size: 13px;
+    animation: fadeIn 0.1s ease-out;
   `;
 
     items.forEach((item) => {
@@ -304,29 +308,24 @@ function showContextMenu(items, x, y, theme, bounds) {
     document.body.appendChild(backdrop);
     document.body.appendChild(menu);
 
-    requestAnimationFrame(() => {
-        const rect = menu.getBoundingClientRect();
-        const limitLeft = bounds ? bounds.left : 0;
-        const limitTop = bounds ? bounds.top : 0;
-        const limitWidth = bounds ? bounds.width : window.innerWidth;
-        const limitHeight = bounds ? bounds.height : window.innerHeight;
-        const limitRight = limitLeft + limitWidth;
-        const limitBottom = limitTop + limitHeight;
+    const rect = menu.getBoundingClientRect();
+    const limitLeft = bounds ? bounds.left : 0;
+    const limitTop = bounds ? bounds.top : 0;
+    const limitWidth = bounds ? bounds.width : window.innerWidth;
+    const limitHeight = bounds ? bounds.height : window.innerHeight;
+    const limitRight = limitLeft + limitWidth;
+    const limitBottom = limitTop + limitHeight;
 
-        let finalX = x;
-        let finalY = y;
+    let finalX = x - 10;
+    let finalY = y - 10;
 
-        if (finalX + rect.width > limitRight) finalX = limitRight - rect.width - 10;
-        if (finalY + rect.height > limitBottom) finalY = limitBottom - rect.height - 10;
-        if (finalX < limitLeft) finalX = limitLeft + 10;
-        if (finalY < limitTop) finalY = limitTop + 10;
+    if (finalX + rect.width > limitRight) finalX = limitRight - rect.width;
+    if (finalY + rect.height > limitBottom) finalY = limitBottom - rect.height;
+    if (finalX < limitLeft) finalX = limitLeft;
+    if (finalY < limitTop) finalY = limitTop;
 
-        menu.style.left = finalX + 'px';
-        menu.style.top = finalY + 'px';
-        menu.style.opacity = '1';
-        menu.style.pointerEvents = 'auto';
-        menu.style.animation = 'fadeIn 0.1s ease-out';
-    });
+    menu.style.left = finalX + 'px';
+    menu.style.top = finalY + 'px';
 }
 
 WebViewContainer.displayName = 'WebViewContainer';

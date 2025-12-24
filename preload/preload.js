@@ -60,4 +60,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     clearDownloads: () => ipcRenderer.invoke('downloads:clear'),
     createWindow: (url) => ipcRenderer.invoke('window:create', url),
     onDownloadProgress: (callback) => ipcRenderer.on('download-progress', (_, data) => callback(data)),
+    onGlobalClick: (callback) => ipcRenderer.on('global-click', () => callback()),
+    removeGlobalClickListeners: () => ipcRenderer.removeAllListeners('global-click'),
 });

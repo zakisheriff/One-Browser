@@ -109,12 +109,19 @@ const BrowserApp = memo(function BrowserApp() {
             window.electronAPI.onNewTabRequested(handleNewTabRequested);
         }
 
+        if (window.electronAPI.onGlobalClick) {
+            window.electronAPI.onGlobalClick(() => {
+                closePopoversRef.current?.close?.();
+            });
+        }
+
         // Cleanup listeners on unmount
         return () => {
             if (window.electronAPI.removeNewTabListeners) window.electronAPI.removeNewTabListeners();
             if (window.electronAPI.removeCloseTabListeners) window.electronAPI.removeCloseTabListeners();
             if (window.electronAPI.removeReloadTabListeners) window.electronAPI.removeReloadTabListeners();
             if (window.electronAPI.removeNewTabRequestedListeners) window.electronAPI.removeNewTabRequestedListeners();
+            if (window.electronAPI.removeGlobalClickListeners) window.electronAPI.removeGlobalClickListeners();
         };
     }, []);
 
@@ -204,7 +211,10 @@ const BrowserApp = memo(function BrowserApp() {
                             ref={(ref) => webviewRefs.current[tab.id] = ref}
                             url={tab.url || getHomeUrl()}
                             tabId={tab.id}
-                            onFocus={() => setActiveTabId(tab.id)}
+                            onFocus={() => {
+                                setActiveTabId(tab.id);
+                                closePopoversRef.current?.close?.();
+                            }}
                             onOpenInNewTab={(url, options) => addTab(url, 'New Tab', options)}
                         />
                     </div>

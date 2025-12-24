@@ -66,15 +66,39 @@ function createWindow(targetUrl) {
       receivedBytes: 0,
       totalBytes: item.getTotalBytes(),
       state: 'progressing',
-      startTime: Date.now()
+      startTime: Date.now(),
+      lastBytes: 0,
+      lastTime: Date.now(),
+      speed: '0 KB/s'
     };
     downloads.unshift(entry);
 
     item.on('updated', (event, state) => {
       const idx = downloads.findIndex(d => d.id === downloadId);
       if (idx !== -1) {
+        const now = Date.now();
+        const received = item.getReceivedBytes();
+
+        // Calculate Speed
+        if (!downloads[idx].lastTime) downloads[idx].lastTime = now;
+        const timeDiff = now - downloads[idx].lastTime;
+
+        if (timeDiff > 500) { // Update speed every 500ms
+          const bytesDiff = received - downloads[idx].lastBytes;
+          const bps = (bytesDiff / timeDiff) * 1000;
+
+          if (bps > 1024 * 1024) {
+            downloads[idx].speed = `${(bps / (1024 * 1024)).toFixed(1)} MB/s`;
+          } else {
+            downloads[idx].speed = `${(bps / 1024).toFixed(0)} KB/s`;
+          }
+
+          downloads[idx].lastBytes = received;
+          downloads[idx].lastTime = now;
+        }
+
         downloads[idx].state = state;
-        downloads[idx].received = item.getReceivedBytes();
+        downloads[idx].received = received;
         downloads[idx].size = item.getTotalBytes();
 
         // Emit progress to renderer
@@ -95,6 +119,7 @@ function createWindow(targetUrl) {
       const idx = downloads.findIndex(d => d.id === downloadId);
       if (idx !== -1) {
         downloads[idx].state = state; // 'completed', 'cancelled', 'interrupted'
+        downloads[idx].speed = ''; // Clear speed
         if (state === 'completed') {
           downloads[idx].path = item.getSavePath();
         }
@@ -120,6 +145,15 @@ function createWindow(targetUrl) {
   let lastNewTabTime = 0;
 
   mainWindow.webContents.on('did-attach-webview', (event, webContents) => {
+    // Listen for input events on all webviews globally
+    // This catches mouse and touch events before the web page can block them
+    webContents.on('input-event', (event, input) => {
+      if (input.type === 'mouseDown' || input.type === 'gestureTap' || input.type === 'touchStart') {
+        process.stdout.write(`[Main]: Global Input Detected: ${input.type}\n`);
+        mainWindow?.webContents.send('global-click');
+      }
+    });
+
     webContents.setWindowOpenHandler((details) => {
       const now = Date.now();
 
