@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useImperativeHandle, forwardRef, memo, useSta
 import { useTabs } from '../context/TabContext';
 import { useTheme } from '../context/ThemeContext';
 
-const WebViewContainer = memo(forwardRef(({ url, tabId }, ref) => {
+const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus }, ref) => {
     const webviewRef = useRef(null);
     const { updateTab } = useTabs();
     const { theme } = useTheme();
@@ -60,6 +60,14 @@ const WebViewContainer = memo(forwardRef(({ url, tabId }, ref) => {
             updateTab(tabId, { loading: false });
         };
 
+        // Handle webview crash - auto reload
+        const handleCrashed = () => {
+            console.log('Webview crashed, reloading...');
+            setTimeout(() => {
+                webviewRef.current?.reload();
+            }, 500);
+        };
+
         const handlePageTitleUpdated = (e) => updateTab(tabId, { title: e.title });
         const handlePageFaviconUpdated = (e) => {
             if (e.favicons?.length > 0) updateTab(tabId, { favicon: e.favicons[0] });
@@ -81,6 +89,11 @@ const WebViewContainer = memo(forwardRef(({ url, tabId }, ref) => {
             ], e.clientX, e.clientY, theme);
         };
 
+        // Close popovers when webview gets focus (user clicks inside)
+        const handleFocus = () => {
+            onFocus?.();
+        };
+
         webview.addEventListener('did-start-loading', handleDidStartLoading);
         webview.addEventListener('load-commit', handleLoadCommit);
         webview.addEventListener('dom-ready', handleDomReady);
@@ -90,6 +103,9 @@ const WebViewContainer = memo(forwardRef(({ url, tabId }, ref) => {
         webview.addEventListener('page-favicon-updated', handlePageFaviconUpdated);
         webview.addEventListener('did-navigate', handleDidNavigate);
         webview.addEventListener('context-menu', handleContextMenu);
+        webview.addEventListener('focus', handleFocus);
+        webview.addEventListener('crashed', handleCrashed);
+        webview.addEventListener('render-process-gone', handleCrashed);
 
         return () => {
             webview.removeEventListener('did-start-loading', handleDidStartLoading);
@@ -101,11 +117,18 @@ const WebViewContainer = memo(forwardRef(({ url, tabId }, ref) => {
             webview.removeEventListener('page-favicon-updated', handlePageFaviconUpdated);
             webview.removeEventListener('did-navigate', handleDidNavigate);
             webview.removeEventListener('context-menu', handleContextMenu);
+            webview.removeEventListener('focus', handleFocus);
+            webview.removeEventListener('crashed', handleCrashed);
+            webview.removeEventListener('render-process-gone', handleCrashed);
         };
-    }, [tabId, updateTab, theme]);
+    }, [tabId, updateTab, theme, onFocus]);
 
     return (
-        <div className="h-full w-full overflow-hidden rounded-2xl relative bg-white">
+        <div
+            className="h-full w-full overflow-hidden rounded-2xl relative bg-white"
+            onClick={() => onFocus?.()}
+            onMouseDown={() => onFocus?.()}
+        >
             {/* Loading Progress Bar */}
             {loadProgress > 0 && (
                 <div className="absolute top-0 left-0 right-0 h-0.5 z-20 bg-black/5">
@@ -120,7 +143,9 @@ const WebViewContainer = memo(forwardRef(({ url, tabId }, ref) => {
                 src={url}
                 className="w-full h-full"
                 allowpopups="true"
-                webpreferences="contextIsolation=yes"
+                partition="persist:main"
+                useragent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                webpreferences="contextIsolation=no, javascript=yes, webSecurity=yes, allowRunningInsecureContent=no"
             />
         </div>
     );

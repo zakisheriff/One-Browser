@@ -31,8 +31,32 @@ const BrowserApp = memo(function BrowserApp() {
         }
     }, [activeTabId, updateTab]);
 
-    const handleGoBack = useCallback(() => webviewRefs.current[activeTabId]?.goBack(), [activeTabId]);
-    const handleGoForward = useCallback(() => webviewRefs.current[activeTabId]?.goForward(), [activeTabId]);
+    const handleGoBack = useCallback(() => {
+        const webview = webviewRefs.current[activeTabId];
+        if (webview?.canGoBack()) {
+            webview.goBack();
+        } else if (activeTab?.url) {
+            // Store current URL for forward navigation, then go to home
+            const currentUrl = activeTab.url;
+            updateTab(activeTabId, {
+                url: '',
+                loading: false,
+                title: 'New Tab',
+                favicon: null,
+                lastUrl: currentUrl
+            });
+        }
+    }, [activeTabId, activeTab, updateTab]);
+
+    const handleGoForward = useCallback(() => {
+        const webview = webviewRefs.current[activeTabId];
+        if (webview?.canGoForward()) {
+            webview.goForward();
+        } else if (!activeTab?.url && activeTab?.lastUrl) {
+            // On home page with stored lastUrl, navigate forward to it
+            updateTab(activeTabId, { url: activeTab.lastUrl, loading: true, title: 'Loading...', lastUrl: null });
+        }
+    }, [activeTabId, activeTab, updateTab]);
     const handleReload = useCallback(() => webviewRefs.current[activeTabId]?.reload(), [activeTabId]);
     const handleStop = useCallback(() => {
         webviewRefs.current[activeTabId]?.stop();
@@ -45,8 +69,11 @@ const BrowserApp = memo(function BrowserApp() {
     }, []);
 
     const handleContentClick = useCallback(() => {
-        // Close all popovers when clicking on content area
-        closePopoversRef.current?.();
+        closePopoversRef.current?.close?.();
+    }, []);
+
+    const handleOpenPanel = useCallback((panel) => {
+        closePopoversRef.current?.open?.(panel);
     }, []);
 
     return (
@@ -62,7 +89,7 @@ const BrowserApp = memo(function BrowserApp() {
                         {tab.url ? (
                             <WebViewContainer ref={(ref) => setWebviewRef(tab.id, ref)} url={tab.url} tabId={tab.id} onFocus={handleContentClick} />
                         ) : (
-                            tab.id === activeTabId && <NewTabPage onNavigate={handleNavigate} />
+                            tab.id === activeTabId && <NewTabPage onNavigate={handleNavigate} onOpenPanel={handleOpenPanel} />
                         )}
                     </div>
                 ))}

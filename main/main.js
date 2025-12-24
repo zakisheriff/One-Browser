@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu, Tray, session } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, Tray, session, net } = require('electron');
 const path = require('path');
 
 let mainWindow;
@@ -28,6 +28,17 @@ function createWindow() {
       sandbox: false,
       webviewTag: true,
     },
+  });
+
+  // Configure the webview session for better compatibility
+  const webviewSession = session.fromPartition('persist:main');
+
+  // Set a proper user agent for the webview session
+  webviewSession.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+
+  // Handle permission requests (for things like geolocation, camera, etc.)
+  webviewSession.setPermissionRequestHandler((webContents, permission, callback) => {
+    callback(true);
   });
 
   // Show window when ready to prevent blank flash
@@ -200,6 +211,20 @@ ipcMain.handle('history:clear', () => {
 ipcMain.handle('history:removeItem', (_, url) => {
   history = history.filter((h) => h.url !== url);
   return history;
+});
+
+// Search suggestions via main process to bypass CORS
+ipcMain.handle('search:suggestions', async (_, query) => {
+  if (!query || query.length < 1) return [];
+
+  try {
+    const url = `https://suggestqueries.google.com/complete/search?client=firefox&q=${encodeURIComponent(query)}`;
+    const response = await net.fetch(url);
+    const data = await response.json();
+    return data && data[1] ? data[1].slice(0, 6) : [];
+  } catch (e) {
+    return [];
+  }
 });
 
 // App lifecycle

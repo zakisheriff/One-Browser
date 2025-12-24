@@ -24,4 +24,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     addHistory: (entry) => ipcRenderer.invoke('history:add', entry),
     clearHistory: () => ipcRenderer.invoke('history:clear'),
     removeHistoryItem: (url) => ipcRenderer.invoke('history:removeItem', url),
+
+    // Search suggestions
+    getSuggestions: (query) => ipcRenderer.invoke('search:suggestions', query),
 });

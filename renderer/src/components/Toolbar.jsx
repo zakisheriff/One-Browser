@@ -29,9 +29,9 @@ const Toolbar = memo(function Toolbar({ url, onNavigate, onGoBack, onGoForward, 
         }
     }, [url, isFocused]);
 
-    // Fetch Google suggestions
+    // Fetch Google suggestions via main process (bypasses CORS)
     const fetchSuggestions = useCallback(async (query) => {
-        if (!query || query.length < 2) {
+        if (!query || query.length < 1) {
             setSuggestions([]);
             return;
         }
@@ -43,13 +43,14 @@ const Toolbar = memo(function Toolbar({ url, onNavigate, onGoBack, onGoForward, 
         }
 
         try {
-            const response = await fetch(
-                `https://suggestqueries.google.com/complete/search?client=firefox&q=${encodeURIComponent(query)}`
-            );
-            const data = await response.json();
-            if (data && data[1]) {
-                setSuggestions(data[1].slice(0, 6));
-                setShowSuggestions(true);
+            if (window.electronAPI?.getSuggestions) {
+                const results = await window.electronAPI.getSuggestions(query);
+                if (results && results.length > 0) {
+                    setSuggestions(results);
+                    setShowSuggestions(true);
+                } else {
+                    setSuggestions([]);
+                }
             }
         } catch (e) {
             setSuggestions([]);
@@ -64,7 +65,7 @@ const Toolbar = memo(function Toolbar({ url, onNavigate, onGoBack, onGoForward, 
         if (debounceRef.current) clearTimeout(debounceRef.current);
         debounceRef.current = setTimeout(() => {
             fetchSuggestions(value);
-        }, 150);
+        }, 100); // Reduced debounce for faster response
     };
 
     useEffect(() => {
@@ -75,12 +76,17 @@ const Toolbar = memo(function Toolbar({ url, onNavigate, onGoBack, onGoForward, 
         }
     }, [activePopover]);
 
-    // Expose close function to parent
+    // Expose close and open functions to parent
     useEffect(() => {
         if (closePopoversRef) {
-            closePopoversRef.current = () => {
-                setActivePopover(null);
-                setShowSuggestions(false);
+            closePopoversRef.current = {
+                close: () => {
+                    setActivePopover(null);
+                    setShowSuggestions(false);
+                },
+                open: (panel) => {
+                    setActivePopover(panel);
+                }
             };
         }
     }, [closePopoversRef]);
@@ -126,6 +132,10 @@ const Toolbar = memo(function Toolbar({ url, onNavigate, onGoBack, onGoForward, 
 
     const handleSubmit = (e) => {
         e.preventDefault();
+        setShowSuggestions(false);
+        setSuggestions([]);
+        setIsFocused(false);
+        e.target.querySelector('input')?.blur();
         navigateTo(inputValue);
     };
 
