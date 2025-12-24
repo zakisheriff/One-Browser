@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Window controls
     minimize: () => ipcRenderer.invoke('window:minimize'),
     maximize: () => ipcRenderer.invoke('window:maximize'),
+    fullscreen: () => ipcRenderer.invoke('window:fullscreen'),
     close: () => ipcRenderer.invoke('window:close'),
     fullscreen: () => ipcRenderer.invoke('window:fullscreen'),
     isMaximized: () => ipcRenderer.invoke('window:isMaximized'),
@@ -46,6 +47,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     saveImage: (url) => ipcRenderer.invoke('image:save', url),
     cancelDownload: (id) => ipcRenderer.invoke('downloads:cancel', id),
     removeDownload: (id) => ipcRenderer.invoke('downloads:remove', id),
+    saveImage: (url) => ipcRenderer.invoke('image:save', url),
+    cancelDownload: (id) => ipcRenderer.invoke('downloads:cancel', id),
+    removeDownload: (id) => ipcRenderer.invoke('downloads:remove', id),
     clearDownloads: () => ipcRenderer.invoke('downloads:clear'),
+    createWindow: (url) => ipcRenderer.invoke('window:create', url),
     onDownloadProgress: (callback) => ipcRenderer.on('download-progress', (_, data) => callback(data)),
 });

@@ -8,7 +8,7 @@ const isDev = !app.isPackaged;
 const RENDERER_DEV_URL = 'http://localhost:5173';
 const RENDERER_PROD_PATH = path.join(__dirname, '../renderer/dist/index.html');
 
-function createWindow() {
+function createWindow(targetUrl) {
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -122,10 +122,17 @@ function createWindow() {
 
   // Load the renderer
   if (isDev) {
-    mainWindow.loadURL(RENDERER_DEV_URL);
+    const devUrl = new URL(RENDERER_DEV_URL);
+    if (targetUrl) devUrl.searchParams.set('initialUrl', targetUrl);
+    mainWindow.loadURL(devUrl.toString());
     mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
-    mainWindow.loadFile(RENDERER_PROD_PATH);
+    // For production with file://, query params can be tricky but usually work with loadFile if passed as object or manual hash
+    // using loadURL with file protocol is safer for params
+    const prodPath = path.join('file://', RENDERER_PROD_PATH);
+    const prodUrl = new URL(prodPath);
+    if (targetUrl) prodUrl.searchParams.set('initialUrl', targetUrl);
+    mainWindow.loadURL(prodUrl.toString());
   }
 
   mainWindow.on('closed', () => {
@@ -408,8 +415,11 @@ ipcMain.handle('image:save', async (_, url) => {
         { name: 'All Files', extensions: ['*'] }
       ];
     } else {
+      // Offer conversion options
       saveOptions.filters = [
-        { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'] },
+        { name: 'All Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] },
+        { name: 'PNG Image', extensions: ['png'] },
+        { name: 'JPEG Image', extensions: ['jpg', 'jpeg'] },
         { name: 'All Files', extensions: ['*'] }
       ];
     }
@@ -420,28 +430,55 @@ ipcMain.handle('image:save', async (_, url) => {
       const response = await net.fetch(url);
       const buffer = await response.arrayBuffer();
 
-      require('fs').writeFileSync(filePath, Buffer.from(buffer));
+      const ext = path.extname(filePath).toLowerCase();
 
-      // Add to downloads list so it shows in UI
+      // Perform conversion if target format is strictly PNG or JPEG and not SVG
+      // Note: nativeImage is robust but check for empty buffer
+      if (!isSvg && (ext === '.png' || ext === '.jpg' || ext === '.jpeg')) {
+        const image = nativeImage.createFromBuffer(Buffer.from(buffer));
+        if (!image.isEmpty()) {
+          let savedData;
+          if (ext === '.jpg' || ext === '.jpeg') {
+            savedData = image.toJPEG(100); // Quality 100
+          } else {
+            savedData = image.toPNG();
+          }
+          require('fs').writeFileSync(filePath, savedData);
+        } else {
+          // Fallback to raw buffer if image creation failed (e.g. unknown format)
+          require('fs').writeFileSync(filePath, Buffer.from(buffer));
+        }
+      } else {
+        // Write raw buffer (for SVGs, or if user picked 'All Files' with original extension, or unsupported conversion targets)
+        require('fs').writeFileSync(filePath, Buffer.from(buffer));
+      }
+
+      // Add to downloads list
       const filename = path.basename(filePath);
       downloads.unshift({
-        id: Date.now().toString(), // Ensure ID is string for consistency
+        id: Date.now().toString(),
         filename,
         path: filePath,
         url,
         state: 'completed',
         timestamp: Date.now(),
-        size: buffer.byteLength,
-        received: buffer.byteLength
+        size: require('fs').statSync(filePath).size, // Get actual written size
+        received: require('fs').statSync(filePath).size
       });
 
       return { success: true, filePath };
     }
     return { canceled: true };
+    return { canceled: true };
   } catch (error) {
     console.error('Image save failed:', error);
     return { error: error.message };
   }
+});
+
+// Window creation
+ipcMain.handle('window:create', (_, url) => {
+  createWindow(url);
 });
 
 ipcMain.handle('log', (_, message) => {

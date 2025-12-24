@@ -129,10 +129,11 @@ const BrowserApp = memo(function BrowserApp() {
                     <div key={tab.id} className={`absolute inset-0 ${tab.id === activeTabId ? 'z-10' : 'z-0 pointer-events-none opacity-0'}`}>
                         {tab.url ? (
                             <WebViewContainer
-                                ref={(ref) => setWebviewRef(tab.id, ref)}
+                                ref={(ref) => webviewRefs.current[tab.id] = ref}
                                 url={tab.url}
                                 tabId={tab.id}
-                                onFocus={handleContentClick}
+                                onFocus={() => setActiveTabId(tab.id)}
+                                onOpenInNewTab={(url) => addTab(url)}
                             />
                         ) : (
                             tab.id === activeTabId && <NewTabPage onNavigate={handleNavigate} onOpenPanel={handleOpenPanel} />

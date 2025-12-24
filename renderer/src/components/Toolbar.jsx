@@ -28,24 +28,34 @@ const Toolbar = memo(function Toolbar({ url, onNavigate, onGoBack, onGoForward, 
     const popoverRef = useRef(null);
     const suggestionsRef = useRef(null);
     const debounceRef = useRef(null);
+    const inputRef = useRef(null); // Added for the new useEffect
 
-    const [bookmarks, setBookmarks] = useState([]);
-    const [history, setHistory] = useState([]);
-    const [downloads, setDownloads] = useState([]);
-    const [historySearch, setHistorySearch] = useState('');
-    const [aiInput, setAiInput] = useState('');
+    // Ref to track if we just navigated, to prevent late suggestions from popping up
+    const isNavigatingRef = useRef(false);
 
+    // Update input value when URL changes, but only if not focused
     useEffect(() => {
-        if (!isFocused) {
+        if (!isFocused && url) {
             setInputValue(url);
-            setSuggestions([]);
-            setShowSuggestions(false);
         }
     }, [url, isFocused]);
 
+    // Close suggestions when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (suggestionsRef.current && !suggestionsRef.current.contains(event.target) &&
+                inputRef.current && !inputRef.current.contains(event.target)) {
+                setShowSuggestions(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
     // Fetch Google suggestions via main process (bypasses CORS)
     const fetchSuggestions = useCallback(async (query) => {
-        if (!query || query.length < 1) {
+        if (!query || query.length < 1 || isNavigatingRef.current) { // Added isNavigatingRef.current check
             setSuggestions([]);
             return;
         }
@@ -59,6 +69,9 @@ const Toolbar = memo(function Toolbar({ url, onNavigate, onGoBack, onGoForward, 
         try {
             if (window.electronAPI?.getSuggestions) {
                 const results = await window.electronAPI.getSuggestions(query);
+                // double check we didn't navigate while waiting
+                if (isNavigatingRef.current) return; // Added check after async operation
+
                 if (results && results.length > 0) {
                     setSuggestions(results);
                     setShowSuggestions(true);
@@ -75,6 +88,7 @@ const Toolbar = memo(function Toolbar({ url, onNavigate, onGoBack, onGoForward, 
     const handleInputChange = (e) => {
         const value = e.target.value;
         setInputValue(value);
+        isNavigatingRef.current = false; // Reset on new typing
 
         if (debounceRef.current) clearTimeout(debounceRef.current);
         debounceRef.current = setTimeout(() => {
@@ -86,11 +100,18 @@ const Toolbar = memo(function Toolbar({ url, onNavigate, onGoBack, onGoForward, 
         if (activePopover === 'bookmarks' && window.electronAPI) {
             window.electronAPI.getBookmarks().then(setBookmarks);
         } else if (activePopover === 'history' && window.electronAPI) {
-            window.electronAPI.getHistory().then(setHistory);
+            window.electronAPI.getHistory().then(data => setHistory(Array.isArray(data) ? data : []));
         } else if (activePopover === 'downloads' && window.electronAPI?.getDownloads) {
             window.electronAPI.getDownloads().then(setDownloads);
         }
     }, [activePopover]);
+
+    // Handle blur safely (allow clicks on suggestions to register first)
+    const handleInputBlur = () => {
+        setTimeout(() => {
+            setShowSuggestions(false);
+        }, 200);
+    };
 
     // Listen for real-time download updates
     useEffect(() => {
@@ -150,6 +171,12 @@ const Toolbar = memo(function Toolbar({ url, onNavigate, onGoBack, onGoForward, 
     }, [activePopover, showSuggestions]);
 
     const navigateTo = useCallback((input) => {
+        // Clear any pending suggestion fetches
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+
+        // Mark navigation as active to block any in-flight requests
+        isNavigatingRef.current = true;
+
         let navigateUrl = input.trim();
         if (!navigateUrl) return;
 
@@ -198,8 +225,14 @@ const Toolbar = memo(function Toolbar({ url, onNavigate, onGoBack, onGoForward, 
             navigateUrl = `${searchUrl}${encodeURIComponent(navigateUrl)}`;
         }
 
+        // Force close suggestions and clear data immediately
         setShowSuggestions(false);
         setSuggestions([]);
+
+        // Remove focus from input to prevent re-opening on stray events
+        const inputElem = document.querySelector('input[type="text"]');
+        if (inputElem) inputElem.blur();
+
         onNavigate(navigateUrl);
     }, [onNavigate, searchEngine]);
 
@@ -242,7 +275,7 @@ const Toolbar = memo(function Toolbar({ url, onNavigate, onGoBack, onGoForward, 
         setShowSuggestions(false);
     };
 
-    const filteredHistory = history.filter(entry =>
+    const filteredHistory = (Array.isArray(history) ? history : []).filter(entry =>
         !historySearch ||
         entry.title?.toLowerCase().includes(historySearch.toLowerCase()) ||
         entry.url?.toLowerCase().includes(historySearch.toLowerCase())
@@ -379,8 +412,10 @@ const Toolbar = memo(function Toolbar({ url, onNavigate, onGoBack, onGoForward, 
                                         type="text"
                                         value={historySearch}
                                         onChange={(e) => setHistorySearch(e.target.value)}
-                                        placeholder="Search..."
-                                        className={`flex-1 bg-transparent outline-none text-xs ${theme === 'dark' ? 'text-white placeholder-white/30' : 'text-black placeholder-black/30'}`}
+                                        placeholder={`Search with ${searchEngine}...`}
+                                        className={`w-full h-full bg-transparent border-none outline-none text-sm px-10 ${theme === 'dark' ? 'text-white placeholder-white/30' : 'text-black placeholder-black/30'}`}
+                                        style={{ caretColor: '#3b82f6' }}
+                                        onBlur={handleInputBlur}
                                     />
                                 </div>
                             </div>

@@ -6,10 +6,39 @@ let tabIdCounter = 1;
 const generateTabId = () => `tab-${tabIdCounter++}`;
 
 export function TabProvider({ children }) {
-    const [tabs, setTabs] = useState([
-        { id: 'tab-0', title: 'New Tab', url: '', favicon: null, loading: false },
-    ]);
-    const [activeTabId, setActiveTabId] = useState('tab-0');
+    const [tabs, setTabs] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        const initialUrl = params.get('initialUrl');
+
+        if (initialUrl) {
+            return [{
+                id: 'tab-1',
+                url: initialUrl,
+                title: 'Loading...',
+                loading: true,
+                canGoBack: false,
+                canGoForward: false,
+                favicon: null
+            }];
+        }
+        return [{
+            id: 'tab-1',
+            url: '',
+            title: 'New Tab',
+            loading: false,
+            canGoBack: false,
+            canGoForward: false,
+            favicon: null
+        }];
+    });
+
+    // Ensure activeTabId matches the ID of the initial tab
+    const [activeTabId, setActiveTabId] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        // We logic above used 'tab-1' for both, but better to be safe
+        // Actually, logic above always returns an array with index 0
+        return 'tab-1';
+    });
 
     const addTab = useCallback((url = '', title = 'New Tab') => {
         const newTab = { id: generateTabId(), title, url, favicon: null, loading: false };

@@ -128,7 +128,21 @@ const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus, onOpenInNewTab 
 
             if (params.linkURL) {
                 menuItems.push(
-                    { label: 'Open Link in New Tab', action: () => window.open(params.linkURL, '_blank') },
+                    {
+                        label: 'Open Link in New Tab',
+                        action: () => {
+                            if (onOpenInNewTab) {
+                                onOpenInNewTab(params.linkURL);
+                            } else {
+                                // Fallback if prop is missing, though interceptor should catch this too now
+                                window.open(params.linkURL, '_blank');
+                            }
+                        }
+                    },
+                    {
+                        label: 'Open Link in New Window',
+                        action: () => window.electronAPI?.createWindow && window.electronAPI.createWindow(params.linkURL)
+                    },
                     { label: 'Copy Link Address', action: () => navigator.clipboard.writeText(params.linkURL) },
                     { type: 'separator' }
                 );
@@ -145,11 +159,11 @@ const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus, onOpenInNewTab 
             // Developer tools
             menuItems.push(
                 { label: 'View Page Source', action: () => webview.loadURL('view-source:' + webview.getURL()) },
-                { label: 'Inspect Element', action: () => webview.inspectElement(params.x, params.y) }
+                { label: 'Inspect Element', action: () => webview.openDevTools({ mode: 'right' }) }
             );
 
             // Calculate correct position
-            // params.x/y seem to include some offset or are screen relative in some cases. 
+            // params.x/y seem to include some offset or are screen relative in some cases.
             // Trying without adding rect.left/top if user reports "somewhere else" (double offset).
             const x = params.x;
             const y = params.y;
