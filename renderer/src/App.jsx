@@ -20,17 +20,45 @@ const BrowserApp = memo(function BrowserApp() {
 
     const activeTab = tabs.find((t) => t.id === activeTabId);
 
+    // Store stable references to avoid re-registering listeners
+    const addTabRef = useRef(addTab);
+    const addTabInBackgroundRef = useRef(addTabInBackground);
+    const removeTabRef = useRef(removeTab);
+    const activeTabIdRef = useRef(activeTabId);
+
+    // Keep refs updated
     useEffect(() => {
-        if (window.electronAPI) {
-            window.electronAPI.onNewTab(() => addTab());
-            window.electronAPI.onCloseTab(() => { if (activeTabId) removeTab(activeTabId); });
-            window.electronAPI.onReloadTab(() => { webviewRefs.current[activeTabId]?.reload(); });
-            // Handle new tab requests from webviews (intercepted by main process)
-            window.electronAPI.onNewTabRequested && window.electronAPI.onNewTabRequested((url) => {
-                if (url) addTab(url);
-            });
+        addTabRef.current = addTab;
+        addTabInBackgroundRef.current = addTabInBackground;
+        removeTabRef.current = removeTab;
+        activeTabIdRef.current = activeTabId;
+    }, [addTab, addTabInBackground, removeTab, activeTabId]);
+
+    // Register IPC listeners ONCE on mount
+    useEffect(() => {
+        if (!window.electronAPI) return;
+
+        const handleNewTab = () => addTabRef.current();
+        const handleCloseTab = () => {
+            if (activeTabIdRef.current) removeTabRef.current(activeTabIdRef.current);
+        };
+        const handleReloadTab = () => {
+            webviewRefs.current[activeTabIdRef.current]?.reload();
+        };
+        const handleNewTabRequested = (url) => {
+            if (url) addTabInBackgroundRef.current(url);
+        };
+
+        window.electronAPI.onNewTab(handleNewTab);
+        window.electronAPI.onCloseTab(handleCloseTab);
+        window.electronAPI.onReloadTab(handleReloadTab);
+        if (window.electronAPI.onNewTabRequested) {
+            window.electronAPI.onNewTabRequested(handleNewTabRequested);
         }
-    }, [activeTabId, addTab, removeTab]);
+
+        // No cleanup available for ipcRenderer.on in this simple setup,
+        // but at least we only register once
+    }, []);
 
     const handleNavigate = useCallback((url) => {
         if (activeTabId) {

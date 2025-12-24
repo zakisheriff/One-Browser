@@ -55,6 +55,10 @@ export function TabProvider({ children }) {
     }, []);
 
     const removeTab = useCallback((tabId) => {
+        // Get current state synchronously to avoid stale closure
+        let newActiveId = null;
+        let needsNewActive = false;
+
         setTabs((prev) => {
             const index = prev.findIndex((t) => t.id === tabId);
             if (index === -1) return prev; // Tab not found, no change
@@ -62,26 +66,27 @@ export function TabProvider({ children }) {
             const newTabs = prev.filter((t) => t.id !== tabId);
 
             if (newTabs.length === 0) {
-                // Create a new empty tab
+                // Create a new empty tab when closing the last one
                 const newTab = { id: generateTabId(), title: 'New Tab', url: '', favicon: null, loading: false };
-                // Schedule activeTabId update after this state update
-                setTimeout(() => setActiveTabId(newTab.id), 0);
+                newActiveId = newTab.id;
+                needsNewActive = true;
                 return [newTab];
             }
 
-            // Schedule activeTabId update if needed
-            const needsActiveUpdate = tabId === activeTabId;
-            if (needsActiveUpdate) {
-                const newIndex = Math.min(index, newTabs.length - 1);
-                const newActiveId = newTabs[newIndex]?.id;
-                if (newActiveId) {
-                    setTimeout(() => setActiveTabId(newActiveId), 0);
-                }
-            }
+            // Check if we need to update active tab
+            // We use a functional check by seeing if tabId matches what we think is active
+            const newIndex = Math.min(index, newTabs.length - 1);
+            newActiveId = newTabs[newIndex]?.id;
+            needsNewActive = true;
 
             return newTabs;
         });
-    }, [activeTabId]);
+
+        // Update activeTabId outside of setTabs to avoid closure issues
+        if (needsNewActive && newActiveId) {
+            setActiveTabId(newActiveId);
+        }
+    }, []);
 
     const updateTab = useCallback((tabId, updates) => {
         setTabs((prev) =>

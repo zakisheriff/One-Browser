@@ -9,6 +9,15 @@ const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus, onOpenInNewTab 
     const [loadProgress, setLoadProgress] = useState(0);
     const isLoadingRef = useRef(false);
 
+    // Guard to prevent double-firing of new tab creation
+    const isOpeningTabRef = useRef(false);
+
+    // Track URL that should be blocked from navigating in current tab
+    const urlToBlockRef = useRef(null);
+
+    // Store original URL for snap-back if navigation occurs
+    const originalUrlRef = useRef(null);
+
     useImperativeHandle(ref, () => ({
         goBack: () => webviewRef.current?.goBack(),
         goForward: () => webviewRef.current?.goForward(),
@@ -77,9 +86,31 @@ const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus, onOpenInNewTab 
             window.electronAPI?.addHistory({ url: e.url, title: webview.getTitle() });
         };
 
+        // Block navigation to URLs that are being opened in new tab
+        // Use "snap-back" approach: if navigation to blocked URL detected, go back immediately
+        const handleWillNavigate = (e) => {
+            if (urlToBlockRef.current && e.url === urlToBlockRef.current && originalUrlRef.current) {
+                const snapBackUrl = originalUrlRef.current;
+
+                // After a tiny delay, check if we navigated and snap back
+                setTimeout(() => {
+                    if (webview.getURL() === urlToBlockRef.current) {
+                        console.log('[WebView] Snapping back from', urlToBlockRef.current, 'to', snapBackUrl);
+                        webview.loadURL(snapBackUrl);
+                    }
+                    urlToBlockRef.current = null;
+                    originalUrlRef.current = null;
+                }, 100);
+            }
+        };
+
         const handleNewWindow = (e) => {
             // Prevent the default behavior (opening a new window)
             e.preventDefault();
+
+            // Guard: if we're already opening a tab from context menu, don't double-fire
+            if (isOpeningTabRef.current) return;
+
             const protocol = new URL(e.url).protocol;
             if (protocol === 'http:' || protocol === 'https:') {
                 if (onOpenInNewTab) {
@@ -131,12 +162,31 @@ const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus, onOpenInNewTab 
                     {
                         label: 'Open Link in New Tab',
                         action: () => {
+                            if (isOpeningTabRef.current) return; // Already opening
+                            isOpeningTabRef.current = true;
+
+                            // Store original URL for snap-back if needed
+                            originalUrlRef.current = webview.getURL();
+
+                            // Block this URL from navigating in current tab
+                            urlToBlockRef.current = params.linkURL;
+
                             if (onOpenInNewTab) {
                                 onOpenInNewTab(params.linkURL);
-                            } else {
-                                // Fallback if prop is missing, though interceptor should catch this too now
-                                window.open(params.linkURL, '_blank');
                             }
+
+                            // CRITICAL: Stop the current webview to cancel any pending navigation
+                            webview.stop();
+
+                            // Reset guard after a frame to allow future opens
+                            requestAnimationFrame(() => {
+                                isOpeningTabRef.current = false;
+                            });
+
+                            // Clear blocked URL after a short delay
+                            setTimeout(() => {
+                                urlToBlockRef.current = null;
+                            }, 500);
                         }
                     },
                     {
@@ -208,6 +258,7 @@ const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus, onOpenInNewTab 
         webview.addEventListener('crashed', handleCrashed);
         webview.addEventListener('render-process-gone', handleCrashed);
         webview.addEventListener('new-window', handleNewWindow);
+        webview.addEventListener('will-navigate', handleWillNavigate);
 
 
         return () => {
@@ -223,6 +274,8 @@ const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus, onOpenInNewTab 
             webview.removeEventListener('focus', handleFocus);
             webview.removeEventListener('crashed', handleCrashed);
             webview.removeEventListener('render-process-gone', handleCrashed);
+            webview.removeEventListener('new-window', handleNewWindow);
+            webview.removeEventListener('will-navigate', handleWillNavigate);
         };
     }, [tabId, updateTab, theme, onFocus]);
 
