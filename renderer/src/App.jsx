@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, memo, useContext } from 'react';
 import Titlebar from './components/Titlebar';
 import TabBar from './components/TabBar';
 import Toolbar from './components/Toolbar';
@@ -7,7 +7,8 @@ import NewTabPage from './components/NewTabPage';
 import SettingsModal from './components/SettingsModal';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { TabProvider, useTabs } from './context/TabContext';
-import { SettingsProvider } from './context/SettingsContext';
+// ... imports
+import { SettingsProvider, useSettings } from './context/SettingsContext';
 
 const BrowserApp = memo(function BrowserApp() {
     const { theme } = useTheme();
@@ -25,7 +26,7 @@ const BrowserApp = memo(function BrowserApp() {
             window.electronAPI.onCloseTab(() => { if (activeTabId) removeTab(activeTabId); });
             window.electronAPI.onReloadTab(() => { webviewRefs.current[activeTabId]?.reload(); });
         }
-    }, []);
+    }, [activeTabId, addTab, removeTab]);
 
     const handleNavigate = useCallback((url) => {
         if (activeTabId) {
@@ -86,9 +87,34 @@ const BrowserApp = memo(function BrowserApp() {
         }
     }, []);
 
+    // Get settings for Toolbar Position
+    const { settings } = useSettings() || {};
+    const toolbarPosition = settings?.toolbarPosition || 'bottom';
+    const isTop = toolbarPosition === 'top';
+
     return (
         <div className={`h-screen w-screen flex flex-col overflow-hidden ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}>
             <Titlebar />
+
+            {/* TOP TOOLBAR & TABS */}
+            {isTop && (
+                <>
+                    <Toolbar
+                        url={activeTab?.url || ''}
+                        onNavigate={handleNavigate}
+                        onGoBack={handleGoBack}
+                        onGoForward={handleGoForward}
+                        onReload={handleReload}
+                        onStop={handleStop}
+                        isLoading={activeTab?.loading || false}
+                        closePopoversRef={closePopoversRef}
+                        onOpenSettings={() => setIsSettingsOpen(true)}
+                    />
+                    <div className="py-2 px-2">
+                        <TabBar />
+                    </div>
+                </>
+            )}
 
             <div
                 className={`flex-1 relative overflow-hidden mx-3 rounded-2xl border ${theme === 'dark' ? 'border-white/10' : 'border-black/10'}`}
@@ -105,27 +131,27 @@ const BrowserApp = memo(function BrowserApp() {
                 ))}
             </div>
 
-
-
-            <Toolbar
-                url={activeTab?.url || ''}
-                onNavigate={handleNavigate}
-                onGoBack={handleGoBack}
-                onGoForward={handleGoForward}
-                onReload={handleReload}
-                onStop={handleStop}
-                isLoading={activeTab?.loading || false}
-                closePopoversRef={closePopoversRef}
-                onOpenSettings={() => {
-                    console.log('App: Opening Settings');
-                    if (window.electronAPI?.log) window.electronAPI.log('App: Opening Settings');
-                    setIsSettingsOpen(true);
-                }}
-            />
-
-            <div className="py-2 px-2">
-                <TabBar />
-            </div>
+            {/* BOTTOM TOOLBAR & TABS */}
+            {!isTop && (
+                <>
+                    <div className="py-2 px-2">
+                        <TabBar />
+                    </div>
+                    <Toolbar
+                        url={activeTab?.url || ''}
+                        onNavigate={handleNavigate}
+                        onGoBack={handleGoBack}
+                        onGoForward={handleGoForward}
+                        onReload={handleReload}
+                        onStop={handleStop}
+                        isLoading={activeTab?.loading || false}
+                        closePopoversRef={closePopoversRef}
+                        onOpenSettings={() => {
+                            setIsSettingsOpen(true);
+                        }}
+                    />
+                </>
+            )}
 
             <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
         </div>

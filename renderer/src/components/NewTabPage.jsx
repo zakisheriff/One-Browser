@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { Clock, Star, Search, Sparkles, Globe, Youtube, MessageSquare, Gem, Camera } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { useSettings } from '../context/SettingsContext';
 
 // Brand SVG icons
 const GoogleIcon = ({ size = 24, className }) => (
@@ -111,13 +112,22 @@ function NewTabPage({ onNavigate, onOpenPanel }) {
         }, 80);
     };
 
+    const { settings } = useSettings() || {};
+    const searchEngine = settings?.searchEngine || 'google';
+
     const handleSearch = (query) => {
         const trimmed = query.trim();
         if (!trimmed) return;
 
         setShowSuggestions(false);
         setSuggestions([]);
-        onNavigate(`https://www.google.com/search?q=${encodeURIComponent(trimmed)}`);
+
+        let searchUrl = 'https://www.google.com/search?q=';
+        if (searchEngine === 'bing') searchUrl = 'https://www.bing.com/search?q=';
+        if (searchEngine === 'duckduckgo') searchUrl = 'https://duckduckgo.com/?q=';
+        if (searchEngine === 'brave') searchUrl = 'https://search.brave.com/search?q=';
+
+        onNavigate(`${searchUrl}${encodeURIComponent(trimmed)}`);
     };
 
     const handleSubmit = (e) => {

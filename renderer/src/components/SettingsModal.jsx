@@ -23,13 +23,13 @@ const SettingsSidebar = ({ activeSection, setActiveSection }) => {
         <div className={`w-64 h-full flex flex-col border-r ${theme === 'dark' ? 'border-white/10' : 'border-black/10'}`}>
             <div className="p-6">
                 <h2 className={`text-xl font-semibold mb-6 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>Settings</h2>
-                <div className="space-y-1">
+                <div className="space-y-2">
                     {sections.map(({ id, icon: Icon, label }) => (
                         <button
                             key={id}
                             onClick={() => setActiveSection(id)}
-                            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all ${activeSection === id
-                                ? (theme === 'dark' ? 'bg-white/10 text-white' : 'bg-black/10 text-black')
+                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeSection === id
+                                ? (theme === 'dark' ? 'bg-white/10 text-white shadow-lg shadow-black/20' : 'bg-black/5 text-black shadow-lg shadow-black/5')
                                 : (theme === 'dark' ? 'text-white/60 hover:bg-white/5 hover:text-white' : 'text-black/60 hover:bg-black/5 hover:text-black')
                                 }`}
                         >
@@ -48,6 +48,13 @@ const SettingsSidebar = ({ activeSection, setActiveSection }) => {
 import GeneralSettings from './settings/GeneralSettings';
 import PrivacySettings from './settings/PrivacySettings';
 import AppearanceSettings from './settings/AppearanceSettings';
+import TabsSettings from './settings/TabsSettings';
+import SearchSettings from './settings/SearchSettings';
+import DownloadsSettings from './settings/DownloadsSettings';
+import ExtensionsSettings from './settings/ExtensionsSettings';
+import AISettings from './settings/AISettings';
+import AccessibilitySettings from './settings/AccessibilitySettings';
+import DeveloperSettings from './settings/DeveloperSettings';
 
 const SettingsModal = ({ isOpen, onClose }) => {
     const { theme } = useTheme();
@@ -59,20 +66,17 @@ const SettingsModal = ({ isOpen, onClose }) => {
 
     const renderContent = () => {
         switch (activeSection) {
-            case 'general':
-                return <GeneralSettings />;
-            case 'privacy':
-                return <PrivacySettings />;
-            case 'appearance':
-                return <AppearanceSettings />;
-            default:
-                return (
-                    <div className={`p-8 rounded-2xl border border-dashed flex flex-col items-center justify-center min-h-[400px] ${theme === 'dark' ? 'border-white/10 bg-white/5' : 'border-black/10 bg-black/5'}`}>
-                        <p className={`${theme === 'dark' ? 'text-white/40' : 'text-black/40'}`}>
-                            {activeSection} settings coming soon...
-                        </p>
-                    </div>
-                );
+            case 'general': return <GeneralSettings />;
+            case 'privacy': return <PrivacySettings />;
+            case 'appearance': return <AppearanceSettings />;
+            case 'tabs': return <TabsSettings />;
+            case 'search': return <SearchSettings />;
+            case 'downloads': return <DownloadsSettings />;
+            case 'extensions': return <ExtensionsSettings />;
+            case 'ai': return <AISettings />;
+            case 'accessibility': return <AccessibilitySettings />;
+            case 'developer': return <DeveloperSettings />;
+            default: return <GeneralSettings />;
         }
     };
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { useSettings } from '../../context/SettingsContext';
 import { useTheme } from '../../context/ThemeContext';
-import { Layout, Type, Palette } from 'lucide-react';
+import { Layout, Palette } from 'lucide-react';
 
 const AppearanceSettings = () => {
     const { settings, updateSettings } = useSettings();
@@ -45,6 +45,44 @@ const AppearanceSettings = () => {
                             <div className="flex flex-col">
                                 <span className={theme === 'dark' ? 'text-white/90' : 'text-black/90'}>Compact</span>
                                 <span className={`text-xs ${theme === 'dark' ? 'text-white/50' : 'text-black/50'}`}>More content on the screen</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+            </section>
+
+            {/* Toolbar Position */}
+            <section className="space-y-4">
+                <h3 className={`text-lg font-medium flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
+                    <Layout size={20} />
+                    Toolbar Position
+                </h3>
+                <div className={`p-4 rounded-xl border ${theme === 'dark' ? 'border-white/10 bg-white/5' : 'border-black/10 bg-black/5'}`}>
+                    <div className="space-y-3">
+                        <label className="flex items-center gap-3 cursor-pointer">
+                            <input
+                                type="radio"
+                                name="toolbarPosition"
+                                checked={settings?.toolbarPosition === 'top'}
+                                onChange={() => updateSettings({ toolbarPosition: 'top' })}
+                                className="w-4 h-4 text-blue-500"
+                            />
+                            <div className="flex flex-col">
+                                <span className={theme === 'dark' ? 'text-white/90' : 'text-black/90'}>Top</span>
+                                <span className={`text-xs ${theme === 'dark' ? 'text-white/50' : 'text-black/50'}`}>Classic desktop layout</span>
+                            </div>
+                        </label>
+                        <label className="flex items-center gap-3 cursor-pointer">
+                            <input
+                                type="radio"
+                                name="toolbarPosition"
+                                checked={settings?.toolbarPosition !== 'top'} // Default to bottom
+                                onChange={() => updateSettings({ toolbarPosition: 'bottom' })}
+                                className="w-4 h-4 text-blue-500"
+                            />
+                            <div className="flex flex-col">
+                                <span className={theme === 'dark' ? 'text-white/90' : 'text-black/90'}>Bottom</span>
+                                <span className={`text-xs ${theme === 'dark' ? 'text-white/50' : 'text-black/50'}`}>Modern / Mobile-style</span>
                             </div>
                         </label>
                     </div>

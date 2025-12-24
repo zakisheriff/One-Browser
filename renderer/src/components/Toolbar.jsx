@@ -4,9 +4,22 @@ import {
     Clock, Puzzle, Sparkles, Sun, Moon, Shield, MoreVertical, Settings, Info, Eye, EyeOff, Search, Trash2
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { useSettings } from '../context/SettingsContext';
 
 const Toolbar = memo(function Toolbar({ url, onNavigate, onGoBack, onGoForward, onReload, onStop, isLoading, closePopoversRef, onOpenSettings }) {
     const { theme, toggleTheme } = useTheme();
+    const { settings } = useSettings() || {};
+    const searchEngine = settings?.searchEngine || 'google';
+
+    // DEBUG: Log search engine on mount and update
+    useEffect(() => {
+        if (window.electronAPI?.log) {
+            window.electronAPI.log(`[Toolbar] Active search engine: ${searchEngine}`);
+        } else {
+            console.log(`[Toolbar] Active search engine: ${searchEngine}`);
+        }
+    }, [searchEngine]);
+
     const [inputValue, setInputValue] = useState(url);
     const [isFocused, setIsFocused] = useState(false);
     const [activePopover, setActivePopover] = useState(null);
@@ -114,6 +127,12 @@ const Toolbar = memo(function Toolbar({ url, onNavigate, onGoBack, onGoForward, 
         let navigateUrl = input.trim();
         if (!navigateUrl) return;
 
+        if (window.electronAPI?.log) {
+            window.electronAPI.log(`[Toolbar] Navigating. Current Engine: ${searchEngine}, Input: ${navigateUrl}`);
+        } else {
+            console.log(`[Toolbar] Navigating. Current Engine: ${searchEngine}`);
+        }
+
         const urlPattern = /^(https?:\/\/|www\.)/i;
         const domainPattern = /^[\w-]+(\.[\w-]+)+/;
 
@@ -122,13 +141,41 @@ const Toolbar = memo(function Toolbar({ url, onNavigate, onGoBack, onGoForward, 
         } else if (domainPattern.test(navigateUrl)) {
             navigateUrl = 'https://' + navigateUrl;
         } else {
-            navigateUrl = `https://www.google.com/search?q=${encodeURIComponent(navigateUrl)}`;
+            // Use selected search engine
+            let searchUrl = 'https://www.google.com/search?q=';
+
+            if (window.electronAPI?.log) {
+                window.electronAPI.log(`[Toolbar] Selecting engine. Value: '${searchEngine}'`);
+            }
+
+            if (searchEngine === 'bing') {
+                if (window.electronAPI?.log) window.electronAPI.log('[Toolbar] MATCHED BING');
+                searchUrl = 'https://www.bing.com/search?q=';
+            }
+            if (searchEngine === 'duckduckgo') {
+                if (window.electronAPI?.log) window.electronAPI.log('[Toolbar] MATCHED DUCKDUCKGO');
+                searchUrl = 'https://duckduckgo.com/?q=';
+            }
+            if (searchEngine === 'brave') {
+                if (window.electronAPI?.log) window.electronAPI.log('[Toolbar] MATCHED BRAVE');
+                searchUrl = 'https://search.brave.com/search?q=';
+            }
+
+            if (window.electronAPI?.log) {
+                window.electronAPI.log(`[Toolbar] Final Prefix: ${searchUrl}`);
+            }
+
+            if (window.electronAPI?.log) {
+                window.electronAPI.log(`[Toolbar] Using Search URL prefix: ${searchUrl}`);
+            }
+
+            navigateUrl = `${searchUrl}${encodeURIComponent(navigateUrl)}`;
         }
 
         setShowSuggestions(false);
         setSuggestions([]);
         onNavigate(navigateUrl);
-    }, [onNavigate]);
+    }, [onNavigate, searchEngine]);
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -181,8 +228,11 @@ const Toolbar = memo(function Toolbar({ url, onNavigate, onGoBack, onGoForward, 
     const menuItemClass = `w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors cursor-default ${theme === 'dark' ? 'hover:bg-white/10 text-white/80' : 'hover:bg-black/10 text-black/80'
         }`;
 
+    const density = settings?.density || 'comfortable';
+    const paddingY = density === 'compact' ? 'py-1.5' : 'py-2.5';
+
     return (
-        <div className={`flex items-center gap-2 px-4 py-2.5 mx-3 my-2 rounded-full border ${theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-black/5 border-black/10'}`} ref={popoverRef}>
+        <div className={`flex items-center gap-2 px-4 ${paddingY} mx-3 my-2 rounded-full border ${theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-black/5 border-black/10'}`} ref={popoverRef}>
             {/* Navigation Buttons */}
             <div className="flex items-center gap-1">
                 <button onClick={onGoBack} className={btnClass} title="Back"><ArrowLeft size={18} /></button>

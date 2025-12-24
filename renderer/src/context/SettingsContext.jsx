@@ -7,32 +7,31 @@ export function useSettings() {
 }
 
 const defaultSettings = {
-    general: {
-        startupPage: 'newtab', // newtab, previous, specific
-        customStartupUrls: [],
-        topSearchEngine: 'google',
-        bottomSearchEngine: 'google'
-    },
-    appearance: {
-        theme: 'system', // light, dark, system
-        transparency: 0.8, // 0.1 to 1.0
-        blurIntensity: 20, // 0 to 50px
-        showToolbar: true,
-        useCustomFont: false
-    },
-    privacy: {
-        blockThirdPartyCookies: true,
-        doNotTrack: true,
-        httpsOnly: false
-    },
-    tabs: {
-        openLinksInNewTab: true,
-        confirmClose: false
-    },
-    downloads: {
-        askLocation: false,
-        autoOpen: false
-    }
+    // General
+    startupPage: 'newtab',
+    customStartupUrls: [],
+    searchEngine: 'google', // Used in GeneralSettings
+
+    // Appearance
+    theme: 'system',
+    density: 'comfortable', // Used in AppearanceSettings
+    showHomeButton: true,
+    showBookmarksBar: false,
+    transparency: 0.8,
+    blurIntensity: 20,
+
+    // Privacy
+    blockThirdPartyCookies: true,
+    doNotTrack: true,
+    httpsOnly: false,
+
+    // Tabs
+    openLinksInNewTab: true,
+    confirmClose: false,
+
+    // Downloads
+    askLocation: false,
+    autoOpen: false
 };
 
 export function SettingsProvider({ children }) {
@@ -42,24 +41,41 @@ export function SettingsProvider({ children }) {
     useEffect(() => {
         if (window.electronAPI?.getSettings) {
             window.electronAPI.getSettings().then((savedSettings) => {
-                if (savedSettings) {
+                console.log('[SettingsContext] Loaded settings:', savedSettings);
+                // Schema check: if settings look old (nested) or missing version, ignore them or migrate
+                if (savedSettings && typeof savedSettings === 'object') {
+                    // Simple migration: if it has 'general' key, it's old.
+                    const isOldSchema = !!savedSettings.general;
+
+                    if (isOldSchema) {
+                        console.log('[SettingsContext] Detected old settings schema. Resetting to defaults.');
+                        if (window.electronAPI?.saveSettings) {
+                            window.electronAPI.saveSettings(defaultSettings);
+                        }
+                        return;
+                    }
+
+                    // Otherwise merge
                     setSettings(prev => ({
                         ...prev,
                         ...savedSettings
                     }));
+                } else {
+                    // No settings found, save defaults
+                    if (window.electronAPI?.saveSettings) {
+                        window.electronAPI.saveSettings(defaultSettings);
+                    }
                 }
             });
         }
     }, []);
 
-    const updateSettings = (category, key, value) => {
+    const updateSettings = (updates) => {
+        console.log('[SettingsContext] Updating settings:', updates);
         setSettings(prev => {
             const newSettings = {
                 ...prev,
-                [category]: {
-                    ...prev[category],
-                    [key]: value
-                }
+                ...updates
             };
             // Persist changes
             if (window.electronAPI?.saveSettings) {
