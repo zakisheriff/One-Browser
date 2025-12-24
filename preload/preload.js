@@ -38,4 +38,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Settings
     getSettings: () => ipcRenderer.invoke('settings:get'),
     saveSettings: (settings) => ipcRenderer.invoke('settings:save', settings),
+
+    // Downloads
+    getDownloads: () => ipcRenderer.invoke('downloads:get'),
+    saveImage: (url) => ipcRenderer.invoke('image:save', url),
 });

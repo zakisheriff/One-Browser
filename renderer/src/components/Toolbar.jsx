@@ -31,6 +31,7 @@ const Toolbar = memo(function Toolbar({ url, onNavigate, onGoBack, onGoForward, 
 
     const [bookmarks, setBookmarks] = useState([]);
     const [history, setHistory] = useState([]);
+    const [downloads, setDownloads] = useState([]);
     const [historySearch, setHistorySearch] = useState('');
     const [aiInput, setAiInput] = useState('');
 
@@ -86,6 +87,8 @@ const Toolbar = memo(function Toolbar({ url, onNavigate, onGoBack, onGoForward, 
             window.electronAPI.getBookmarks().then(setBookmarks);
         } else if (activePopover === 'history' && window.electronAPI) {
             window.electronAPI.getHistory().then(setHistory);
+        } else if (activePopover === 'downloads' && window.electronAPI?.getDownloads) {
+            window.electronAPI.getDownloads().then(setDownloads);
         }
     }, [activePopover]);
 
@@ -380,7 +383,6 @@ const Toolbar = memo(function Toolbar({ url, onNavigate, onGoBack, onGoForward, 
                     )}
                 </div>
 
-                {/* Downloads */}
                 <div className="relative">
                     <button onClick={() => togglePopover('downloads')} className={activeBtnClass('downloads')} title="Downloads">
                         <Download size={18} />
@@ -390,9 +392,24 @@ const Toolbar = memo(function Toolbar({ url, onNavigate, onGoBack, onGoForward, 
                             <div className={`px-4 py-3 border-b ${theme === 'dark' ? 'border-white/10' : 'border-black/10'}`}>
                                 <h3 className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>Downloads</h3>
                             </div>
-                            <div className={`py-8 text-center ${theme === 'dark' ? 'text-white/40' : 'text-black/40'}`}>
-                                <Download size={32} className="mx-auto mb-2 opacity-40" />
-                                <p className="text-sm">No downloads</p>
+                            <div className="overflow-auto max-h-72">
+                                {downloads.length === 0 ? (
+                                    <div className={`py-8 text-center ${theme === 'dark' ? 'text-white/40' : 'text-black/40'}`}>
+                                        <Download size={32} className="mx-auto mb-2 opacity-40" />
+                                        <p className="text-sm">No downloads</p>
+                                    </div>
+                                ) : (
+                                    downloads.map((d, i) => (
+                                        <div key={i} className={`flex items-center gap-3 px-4 py-3 border-b last:border-0 ${theme === 'dark' ? 'border-white/5 hover:bg-white/5' : 'border-black/5 hover:bg-black/5'}`}>
+                                            <div className="flex-1 min-w-0">
+                                                <div className={`text-sm font-medium truncate ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{d.filename}</div>
+                                                <div className={`text-xs ${theme === 'dark' ? 'text-white/40' : 'text-black/40'}`}>
+                                                    {d.state === 'completed' ? 'Completed' : 'Downloading...'}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
                             </div>
                         </div>
                     )}

@@ -41,6 +41,61 @@ function createWindow() {
     callback(true);
   });
 
+  // Handle downloads
+  webviewSession.on('will-download', (event, item, webContents) => {
+    // Set the save path, making Electron show a save dialog.
+    item.setSaveDialogOptions({
+      title: 'Save File',
+      defaultPath: item.getFilename(), // Let Electron suggest the filename
+      buttonLabel: 'Save'
+    });
+
+    const downloadId = Date.now();
+    const entry = {
+      id: downloadId,
+      filename: item.getFilename(),
+      url: item.getURL(),
+      timestamp: downloadId,
+      state: 'progressing',
+      size: 0,
+      received: 0
+    };
+    downloads.unshift(entry);
+
+    item.on('updated', (event, state) => {
+      const idx = downloads.findIndex(d => d.id === downloadId);
+      if (idx !== -1) {
+        downloads[idx].state = state;
+        downloads[idx].received = item.getReceivedBytes();
+        downloads[idx].size = item.getTotalBytes();
+      }
+      if (state === 'interrupted') {
+        console.log('Download is interrupted but can be resumed');
+      } else if (state === 'progressing') {
+        if (item.isPaused()) {
+          console.log('Download is paused');
+        } else {
+          console.log(`Received bytes: ${item.getReceivedBytes()}`);
+        }
+      }
+    });
+
+    item.once('done', (event, state) => {
+      const idx = downloads.findIndex(d => d.id === downloadId);
+      if (idx !== -1) {
+        downloads[idx].state = state;
+        if (state === 'completed') {
+          downloads[idx].path = item.getSavePath();
+        }
+      }
+      if (state === 'completed') {
+        console.log('Download successfully');
+      } else {
+        console.log(`Download failed: ${state}`);
+      }
+    });
+  });
+
   // Show window when ready to prevent blank flash
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
@@ -257,6 +312,57 @@ ipcMain.handle('settings:get', () => loadSettings());
 ipcMain.handle('settings:save', (_, settings) => {
   saveSettings(settings);
   return true;
+});
+
+// Downloads storage
+let downloads = [];
+ipcMain.handle('downloads:get', () => downloads);
+
+ipcMain.handle('image:save', async (_, url) => {
+  try {
+    const { nativeImage } = require('electron');
+    const response = await net.fetch(url);
+    const buffer = await response.arrayBuffer();
+    const image = nativeImage.createFromBuffer(Buffer.from(buffer));
+
+    const win = BrowserWindow.getFocusedWindow();
+    const { filePath } = await dialog.showSaveDialog(win, {
+      title: 'Save Image As',
+      defaultPath: 'image.png',
+      filters: [
+        { name: 'PNG', extensions: ['png'] },
+        { name: 'JPEG', extensions: ['jpg', 'jpeg'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    });
+
+    if (!filePath) return false;
+
+    let dataToSave;
+    if (filePath.toLowerCase().endsWith('.jpg') || filePath.toLowerCase().endsWith('.jpeg')) {
+      dataToSave = image.toJPEG(90);
+    } else {
+      dataToSave = image.toPNG();
+    }
+
+    fs.writeFileSync(filePath, dataToSave);
+
+    // Add to downloads list
+    const filename = path.basename(filePath);
+    downloads.unshift({
+      filename,
+      path: filePath,
+      url,
+      state: 'completed',
+      timestamp: Date.now(),
+      size: dataToSave.length
+    });
+
+    return true;
+  } catch (e) {
+    console.error('Image save failed:', e);
+    return false;
+  }
 });
 
 ipcMain.handle('log', (_, message) => {

@@ -108,6 +108,7 @@ const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus }, ref) => {
             // Context specific items
             if (params.mediaType === 'image') {
                 menuItems.push(
+                    { label: 'Save Image As...', action: () => window.electronAPI?.saveImage(params.srcURL) },
                     { label: 'Search Image with Google', action: () => onFocus && window.open(`https://www.google.com/searchbyimage?image_url=${encodeURIComponent(params.srcURL)}`, '_blank') },
                     { label: 'Get Image Description (AI)', action: () => console.log('AI Describe', params.srcURL) }, // Placeholder for AI
                     { type: 'separator' }
