@@ -112,8 +112,22 @@ function createWindow(targetUrl) {
   });
 
   // Intercept new window events from WebViews
+  // Track last opened URL to prevent duplicates from multiple webviews
+  let lastNewTabUrl = null;
+  let lastNewTabTime = 0;
+
   mainWindow.webContents.on('did-attach-webview', (event, webContents) => {
     webContents.setWindowOpenHandler((details) => {
+      const now = Date.now();
+
+      // Prevent duplicate: same URL within 2 seconds
+      if (details.url === lastNewTabUrl && (now - lastNewTabTime) < 2000) {
+        return { action: 'deny' };
+      }
+
+      lastNewTabUrl = details.url;
+      lastNewTabTime = now;
+
       // Send IPC to renderer to open in new tab
       mainWindow.webContents.send('new-tab-requested', details.url);
       return { action: 'deny' };

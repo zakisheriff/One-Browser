@@ -2,17 +2,18 @@ import React, { createContext, useContext, useState, useCallback, useMemo } from
 
 const TabContext = createContext();
 
-let tabIdCounter = 1;
-const generateTabId = () => `tab-${tabIdCounter++}`;
+// Use timestamp to ensure unique IDs even after HMR
+const generateTabId = () => `tab-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
 export function TabProvider({ children }) {
     const [tabs, setTabs] = useState(() => {
         const params = new URLSearchParams(window.location.search);
         const initialUrl = params.get('initialUrl');
+        const initialId = generateTabId();
 
         if (initialUrl) {
             return [{
-                id: 'tab-1',
+                id: initialId,
                 url: initialUrl,
                 title: 'Loading...',
                 loading: true,
@@ -22,7 +23,7 @@ export function TabProvider({ children }) {
             }];
         }
         return [{
-            id: 'tab-1',
+            id: initialId,
             url: '',
             title: 'New Tab',
             loading: false,
@@ -32,12 +33,9 @@ export function TabProvider({ children }) {
         }];
     });
 
-    // Ensure activeTabId matches the ID of the initial tab
+    // Initialize activeTabId with the ID of the first tab
     const [activeTabId, setActiveTabId] = useState(() => {
-        const params = new URLSearchParams(window.location.search);
-        // We logic above used 'tab-1' for both, but better to be safe
-        // Actually, logic above always returns an array with index 0
-        return 'tab-1';
+        return tabs[0].id;
     });
 
     const addTab = useCallback((url = '', title = 'New Tab') => {
@@ -55,37 +53,48 @@ export function TabProvider({ children }) {
     }, []);
 
     const removeTab = useCallback((tabId) => {
-        console.log('[TabContext] removeTab called with tabId:', tabId);
-
-        setTabs((prev) => {
-            console.log('[TabContext] Current tabs:', prev.map(t => t.id));
-            const index = prev.findIndex((t) => t.id === tabId);
-            console.log('[TabContext] Tab index:', index);
-
+        setTabs((currentTabs) => {
+            const index = currentTabs.findIndex((t) => t.id === tabId);
             if (index === -1) {
-                console.log('[TabContext] Tab not found!');
-                return prev; // Tab not found, no change
+                return currentTabs;
             }
 
-            const newTabs = prev.filter((t) => t.id !== tabId);
-            console.log('[TabContext] New tabs after removal:', newTabs.map(t => t.id));
+            const newTabs = currentTabs.filter((t) => t.id !== tabId);
 
             if (newTabs.length === 0) {
-                // Create a new empty tab when closing the last one
+                // Generate new tab if all closed
                 const newTab = { id: generateTabId(), title: 'New Tab', url: '', favicon: null, loading: false };
-                console.log('[TabContext] Created new tab:', newTab.id);
-                // Use setTimeout to update activeTabId after this render cycle
+                // We MUST schedule the activeTabId update to avoid concurrent state update warnings/issues
+                // when called from UI handlers, but ensuring it happens with the new tab existence.
                 setTimeout(() => setActiveTabId(newTab.id), 0);
                 return [newTab];
             }
 
-            // Always update active tab when closing
-            const newIndex = Math.min(index, newTabs.length - 1);
-            const newActiveId = newTabs[newIndex]?.id;
-            console.log('[TabContext] New active tab will be:', newActiveId);
-            if (newActiveId) {
-                setTimeout(() => setActiveTabId(newActiveId), 0);
-            }
+            // If we are removing the CURRENTLY ACTIVE tab, need to switch.
+            // Since we can't easily access 'activeTabId' current state synchronously inside this callback 
+            // without adding it to deps (which we avoided here to keep this callback pure-ish),
+            // we will use a functional update for setActiveTabId as well, or just logic.
+
+            // Actually, we can check if the removed tab ID is the same as current active tab ID?
+            // But we don't have activeTabId here.
+
+            // Logic: Always switch to specific neighbor if we removed a tab.
+            // We can determine the "next" tab ID purely from the list.
+
+            // To be safe, we will perform a check in a separate effect or just optimistically update activeTabId?
+            // Let's use the setState callback pattern for setActiveTabId to ensure we check *its* current value.
+
+            setTimeout(() => {
+                setActiveTabId(currentActiveId => {
+                    if (currentActiveId === tabId) {
+                        // We closed the active tab, switch to neighbor
+                        const newIndex = Math.min(index, newTabs.length - 1);
+                        const newActiveId = newTabs[newIndex].id;
+                        return newActiveId;
+                    }
+                    return currentActiveId; // We closed a background tab, stay on current
+                });
+            }, 0);
 
             return newTabs;
         });

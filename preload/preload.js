@@ -11,11 +11,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
     isFullScreen: () => ipcRenderer.invoke('window:isFullScreen'),
 
     // Tab events from main process
+    // Tab events from main process
     onNewTab: (callback) => ipcRenderer.on('new-tab', callback),
-    onCloseTab: (callback) => ipcRenderer.on('tab:close', callback),
-    onReloadTab: (callback) => ipcRenderer.on('tab:reload', callback),
-    onNewTabRequested: (callback) => ipcRenderer.on('new-tab-requested', (_, url) => callback(url)),
+    removeNewTabListeners: () => ipcRenderer.removeAllListeners('new-tab'),
 
+    onCloseTab: (callback) => ipcRenderer.on('tab:close', callback),
+    removeCloseTabListeners: () => ipcRenderer.removeAllListeners('tab:close'),
+
+    onReloadTab: (callback) => ipcRenderer.on('tab:reload', callback),
+    removeReloadTabListeners: () => ipcRenderer.removeAllListeners('tab:reload'),
+
+    onNewTabRequested: (callback) => ipcRenderer.on('new-tab-requested', (_, url) => callback(url)),
+    removeNewTabRequestedListeners: () => ipcRenderer.removeAllListeners('new-tab-requested'),
 
     // Bookmarks
     getBookmarks: () => ipcRenderer.invoke('bookmarks:get'),

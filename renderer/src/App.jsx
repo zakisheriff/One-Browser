@@ -74,6 +74,10 @@ const BrowserApp = memo(function BrowserApp() {
     useEffect(() => {
         if (!window.electronAPI) return;
 
+        // Track last created tab URL to prevent duplicates
+        let lastNewTabUrl = null;
+        let lastNewTabTime = 0;
+
         const handleNewTab = () => addTabRef.current();
         const handleCloseTab = () => {
             if (activeTabIdRef.current) removeTabRef.current(activeTabIdRef.current);
@@ -82,7 +86,15 @@ const BrowserApp = memo(function BrowserApp() {
             webviewRefs.current[activeTabIdRef.current]?.reload();
         };
         const handleNewTabRequested = (url) => {
-            if (url) addTabInBackgroundRef.current(url);
+            const now = Date.now();
+            // Prevent duplicate: same URL within 2 seconds
+            if (url === lastNewTabUrl && (now - lastNewTabTime) < 2000) {
+                return;
+            }
+            lastNewTabUrl = url;
+            lastNewTabTime = now;
+
+            if (url) addTabRef.current(url);
         };
 
         window.electronAPI.onNewTab(handleNewTab);
@@ -92,8 +104,13 @@ const BrowserApp = memo(function BrowserApp() {
             window.electronAPI.onNewTabRequested(handleNewTabRequested);
         }
 
-        // No cleanup available for ipcRenderer.on in this simple setup,
-        // but at least we only register once
+        // Cleanup listeners on unmount
+        return () => {
+            if (window.electronAPI.removeNewTabListeners) window.electronAPI.removeNewTabListeners();
+            if (window.electronAPI.removeCloseTabListeners) window.electronAPI.removeCloseTabListeners();
+            if (window.electronAPI.removeReloadTabListeners) window.electronAPI.removeReloadTabListeners();
+            if (window.electronAPI.removeNewTabRequestedListeners) window.electronAPI.removeNewTabRequestedListeners();
+        };
     }, []);
 
     const handleNavigate = useCallback((url) => {
@@ -108,28 +125,26 @@ const BrowserApp = memo(function BrowserApp() {
         const webview = webviewRefs.current[activeTabId];
         if (webview?.canGoBack()) {
             webview.goBack();
-        } else if (activeTab?.url) {
-            // Store current URL for forward navigation, then go to home
-            const currentUrl = activeTab.url;
-            updateTab(activeTabId, {
-                url: '',
-                loading: false,
-                title: 'New Tab',
-                favicon: null,
-                lastUrl: currentUrl
-            });
+        } else {
+            // If we can't go back, check if we are not at home
+            if (activeTab?.url) {
+                // We are at a URL but can't go back in webview history.
+                // This usually means we navigated directly here. 
+                // Navigate to home (Search Engine)
+                const homeUrl = getHomeUrl();
+                if (activeTab.url !== homeUrl) {
+                    updateTab(activeTabId, { url: homeUrl, loading: true, title: 'New Tab' });
+                }
+            }
         }
-    }, [activeTabId, activeTab, updateTab]);
+    }, [activeTabId, activeTab, updateTab, getHomeUrl]);
 
     const handleGoForward = useCallback(() => {
         const webview = webviewRefs.current[activeTabId];
         if (webview?.canGoForward()) {
             webview.goForward();
-        } else if (!activeTab?.url && activeTab?.lastUrl) {
-            // On home page with stored lastUrl, navigate forward to it
-            updateTab(activeTabId, { url: activeTab.lastUrl, loading: true, title: 'Loading...', lastUrl: null });
         }
-    }, [activeTabId, activeTab, updateTab]);
+    }, [activeTabId, webviewRefs]);
 
     const handleReload = useCallback(() => webviewRefs.current[activeTabId]?.reload(), [activeTabId]);
 
@@ -196,7 +211,7 @@ const BrowserApp = memo(function BrowserApp() {
                             url={tab.url || getHomeUrl()}
                             tabId={tab.id}
                             onFocus={() => setActiveTabId(tab.id)}
-                            onOpenInNewTab={(url) => addTabInBackground(url)}
+                            onOpenInNewTab={(url) => addTab(url)}
                         />
                     </div>
                 ))}
