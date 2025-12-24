@@ -97,11 +97,12 @@ const BrowserApp = memo(function BrowserApp() {
     }, []);
 
     const handleNavigate = useCallback((url) => {
-        if (activeTabId) {
-            if (!url) webviewRefs.current[activeTabId]?.stop();
-            updateTab(activeTabId, { url, loading: !!url, title: url ? 'Loading...' : 'New Tab' });
+        const currentActiveTabId = activeTabIdRef.current;
+        if (currentActiveTabId) {
+            if (!url) webviewRefs.current[currentActiveTabId]?.stop();
+            updateTab(currentActiveTabId, { url, loading: !!url, title: url ? 'Loading...' : 'New Tab' });
         }
-    }, [activeTabId, updateTab]);
+    }, [updateTab]);
 
     const handleGoBack = useCallback(() => {
         const webview = webviewRefs.current[activeTabId];

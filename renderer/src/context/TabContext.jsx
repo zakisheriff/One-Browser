@@ -55,15 +55,25 @@ export function TabProvider({ children }) {
     }, []);
 
     const removeTab = useCallback((tabId) => {
+        console.log('[TabContext] removeTab called with tabId:', tabId);
+
         setTabs((prev) => {
+            console.log('[TabContext] Current tabs:', prev.map(t => t.id));
             const index = prev.findIndex((t) => t.id === tabId);
-            if (index === -1) return prev; // Tab not found, no change
+            console.log('[TabContext] Tab index:', index);
+
+            if (index === -1) {
+                console.log('[TabContext] Tab not found!');
+                return prev; // Tab not found, no change
+            }
 
             const newTabs = prev.filter((t) => t.id !== tabId);
+            console.log('[TabContext] New tabs after removal:', newTabs.map(t => t.id));
 
             if (newTabs.length === 0) {
                 // Create a new empty tab when closing the last one
                 const newTab = { id: generateTabId(), title: 'New Tab', url: '', favicon: null, loading: false };
+                console.log('[TabContext] Created new tab:', newTab.id);
                 // Use setTimeout to update activeTabId after this render cycle
                 setTimeout(() => setActiveTabId(newTab.id), 0);
                 return [newTab];
@@ -72,6 +82,7 @@ export function TabProvider({ children }) {
             // Always update active tab when closing
             const newIndex = Math.min(index, newTabs.length - 1);
             const newActiveId = newTabs[newIndex]?.id;
+            console.log('[TabContext] New active tab will be:', newActiveId);
             if (newActiveId) {
                 setTimeout(() => setActiveTabId(newActiveId), 0);
             }

@@ -25,6 +25,9 @@ const Toolbar = memo(function Toolbar({ url, onNavigate, onGoBack, onGoForward, 
     const [activePopover, setActivePopover] = useState(null);
     const [suggestions, setSuggestions] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
+    const [downloads, setDownloads] = useState([]);
+    const [history, setHistory] = useState([]);
+    const [bookmarks, setBookmarks] = useState([]);
     const popoverRef = useRef(null);
     const suggestionsRef = useRef(null);
     const debounceRef = useRef(null);
@@ -329,9 +332,10 @@ const Toolbar = memo(function Toolbar({ url, onNavigate, onGoBack, onGoForward, 
                     <Shield size={14} className={theme === 'dark' ? 'text-white/40' : 'text-black/40'} />
                     <input
                         type="text"
+                        ref={inputRef}
                         value={inputValue}
                         onChange={handleInputChange}
-                        onFocus={() => { setIsFocused(true); if (suggestions.length > 0) setShowSuggestions(true); }}
+                        onFocus={(e) => { setIsFocused(true); e.target.select(); if (suggestions.length > 0) setShowSuggestions(true); }}
                         onBlur={() => setIsFocused(false)}
                         placeholder="Search or enter URL..."
                         className={`flex-1 bg-transparent outline-none text-sm cursor-text ${theme === 'dark' ? 'text-white placeholder-white/40' : 'text-black placeholder-black/40'}`}
