@@ -12,7 +12,7 @@ import { SettingsProvider, useSettings } from './context/SettingsContext';
 
 const BrowserApp = memo(function BrowserApp() {
     const { theme } = useTheme();
-    const { tabs, activeTabId, addTab, removeTab, updateTab } = useTabs();
+    const { tabs, activeTabId, addTab, addTabInBackground, removeTab, updateTab } = useTabs();
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
     const webviewRefs = useRef({});
@@ -133,7 +133,7 @@ const BrowserApp = memo(function BrowserApp() {
                                 url={tab.url}
                                 tabId={tab.id}
                                 onFocus={() => setActiveTabId(tab.id)}
-                                onOpenInNewTab={(url) => addTab(url)}
+                                onOpenInNewTab={(url) => addTabInBackground(url)}
                             />
                         ) : (
                             tab.id === activeTabId && <NewTabPage onNavigate={handleNavigate} onOpenPanel={handleOpenPanel} />

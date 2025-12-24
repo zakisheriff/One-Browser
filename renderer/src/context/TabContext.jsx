@@ -41,34 +41,47 @@ export function TabProvider({ children }) {
     });
 
     const addTab = useCallback((url = '', title = 'New Tab') => {
-        const newTab = { id: generateTabId(), title, url, favicon: null, loading: false };
+        const newTab = { id: generateTabId(), title, url, favicon: null, loading: !!url };
         setTabs((prev) => [...prev, newTab]);
         setActiveTabId(newTab.id);
+        return newTab.id;
+    }, []);
+
+    // Add a tab in the background without switching to it
+    const addTabInBackground = useCallback((url = '', title = 'New Tab') => {
+        const newTab = { id: generateTabId(), title: url ? 'Loading...' : title, url, favicon: null, loading: !!url };
+        setTabs((prev) => [...prev, newTab]);
         return newTab.id;
     }, []);
 
     const removeTab = useCallback((tabId) => {
         setTabs((prev) => {
             const index = prev.findIndex((t) => t.id === tabId);
+            if (index === -1) return prev; // Tab not found, no change
+
             const newTabs = prev.filter((t) => t.id !== tabId);
 
             if (newTabs.length === 0) {
+                // Create a new empty tab
                 const newTab = { id: generateTabId(), title: 'New Tab', url: '', favicon: null, loading: false };
-                setActiveTabId(newTab.id);
+                // Schedule activeTabId update after this state update
+                setTimeout(() => setActiveTabId(newTab.id), 0);
                 return [newTab];
             }
 
-            setActiveTabId((currentActive) => {
-                if (tabId === currentActive) {
-                    const newIndex = Math.min(index, newTabs.length - 1);
-                    return newTabs[newIndex].id;
+            // Schedule activeTabId update if needed
+            const needsActiveUpdate = tabId === activeTabId;
+            if (needsActiveUpdate) {
+                const newIndex = Math.min(index, newTabs.length - 1);
+                const newActiveId = newTabs[newIndex]?.id;
+                if (newActiveId) {
+                    setTimeout(() => setActiveTabId(newActiveId), 0);
                 }
-                return currentActive;
-            });
+            }
 
             return newTabs;
         });
-    }, []);
+    }, [activeTabId]);
 
     const updateTab = useCallback((tabId, updates) => {
         setTabs((prev) =>
@@ -93,11 +106,12 @@ export function TabProvider({ children }) {
         tabs,
         activeTabId,
         addTab,
+        addTabInBackground,
         removeTab,
         updateTab,
         setActiveTab,
         reorderTabs,
-    }), [tabs, activeTabId, addTab, removeTab, updateTab, setActiveTab, reorderTabs]);
+    }), [tabs, activeTabId, addTab, addTabInBackground, removeTab, updateTab, setActiveTab, reorderTabs]);
 
     return (
         <TabContext.Provider value={value}>
