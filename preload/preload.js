@@ -68,11 +68,4 @@ contextBridge.exposeInMainWorld('electronAPI', {
     createIncognitoWindow: () => ipcRenderer.invoke('window:incognito'),
     onShowAbout: (callback) => ipcRenderer.on('show-about', () => callback()),
     removeShowAboutListeners: () => ipcRenderer.removeAllListeners('show-about'),
-
-    // Extensions
-    loadExtension: () => ipcRenderer.invoke('extensions:load'),
-    getExtensions: () => ipcRenderer.invoke('extensions:get'),
-    removeExtension: (id) => ipcRenderer.invoke('extensions:remove', id),
-    getExtensionPopupUrl: (id) => ipcRenderer.invoke('extensions:getPopupUrl', id),
-    downloadExtensionFromUrl: (url) => ipcRenderer.invoke('extensions:downloadFromUrl', url),
 });

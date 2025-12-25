@@ -6,7 +6,6 @@ import WebViewContainer from './components/WebViewContainer';
 import NewTabPage from './components/NewTabPage';
 import SettingsModal from './components/SettingsModal';
 import AboutModal from './components/AboutModal';
-import ExtensionsModal from './components/ExtensionsModal';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { TabProvider, useTabs } from './context/TabContext';
 // ... imports
@@ -23,7 +22,6 @@ const BrowserApp = memo(function BrowserApp() {
     const { settings } = useSettings();
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isAboutOpen, setIsAboutOpen] = useState(false);
-    const [isExtensionsOpen, setIsExtensionsOpen] = useState(false);
 
     const webviewRefs = useRef({});
     const closePopoversRef = useRef(null);
@@ -211,7 +209,6 @@ const BrowserApp = memo(function BrowserApp() {
                         closePopoversRef={closePopoversRef}
                         onOpenSettings={() => setIsSettingsOpen(true)}
                         onOpenAbout={() => setIsAboutOpen(true)}
-                        onOpenExtensions={() => setIsExtensionsOpen(true)}
                     />
                     <div className="py-2 px-2">
                         <TabBar />
@@ -262,7 +259,6 @@ const BrowserApp = memo(function BrowserApp() {
                                 setIsSettingsOpen(true);
                             }}
                             onOpenAbout={() => setIsAboutOpen(true)}
-                            onOpenExtensions={() => setIsExtensionsOpen(true)}
                         />
                     </>
                 )
@@ -270,7 +266,6 @@ const BrowserApp = memo(function BrowserApp() {
 
             <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
             <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
-            <ExtensionsModal isOpen={isExtensionsOpen} onClose={() => setIsExtensionsOpen(false)} />
         </div >
     );
 });

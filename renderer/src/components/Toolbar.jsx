@@ -6,7 +6,7 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import { useSettings } from '../context/SettingsContext';
 
-const Toolbar = memo(forwardRef(function Toolbar({ url, onNavigate, onGoBack, onGoForward, onReload, onStop, isLoading, closePopoversRef, onOpenSettings, onOpenAbout, onOpenExtensions }, ref) {
+const Toolbar = memo(forwardRef(function Toolbar({ url, onNavigate, onGoBack, onGoForward, onReload, onStop, isLoading, closePopoversRef, onOpenSettings, onOpenAbout }, ref) {
     const { theme, toggleTheme } = useTheme();
     const { settings } = useSettings() || {};
     const searchEngine = settings?.searchEngine || 'google';
@@ -576,11 +576,9 @@ const Toolbar = memo(forwardRef(function Toolbar({ url, onNavigate, onGoBack, on
 
                 <button
                     className={btnClass}
-                    title="Extensions"
-                    onClick={() => {
-                        onOpenExtensions?.();
-                        setActivePopover(null);
-                    }}
+                    title="Extensions (Not Available)"
+                    disabled
+                    style={{ opacity: 0.5, cursor: 'not-allowed' }}
                 >
                     <Puzzle size={18} />
                 </button>

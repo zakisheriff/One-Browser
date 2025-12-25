@@ -1,6 +1,5 @@
 const { app, BrowserWindow, ipcMain, Menu, Tray, session, net, dialog, webContents } = require('electron');
 const path = require('path');
-const extensionManager = require('./extensions');
 
 let mainWindow;
 let tray;
@@ -583,37 +582,6 @@ ipcMain.handle('window:incognito', () => {
 
 ipcMain.handle('log', (_, message) => {
   console.log('[Renderer]:', ...message);
-});
-
-// Extension handlers
-ipcMain.handle('extensions:load', async () => {
-  const result = await dialog.showOpenDialog(mainWindow, {
-    properties: ['openDirectory'],
-    title: 'Select Extension Folder',
-    message: 'Select the folder containing your unpacked Chrome extension',
-  });
-
-  if (result.canceled || result.filePaths.length === 0) {
-    return { success: false, canceled: true };
-  }
-
-  return extensionManager.loadExtension(result.filePaths[0]);
-});
-
-ipcMain.handle('extensions:get', () => {
-  return extensionManager.getExtensions();
-});
-
-ipcMain.handle('extensions:remove', (_, extensionId) => {
-  return extensionManager.removeExtension(extensionId);
-});
-
-ipcMain.handle('extensions:getPopupUrl', (_, extensionId) => {
-  return extensionManager.getExtensionPopupUrl(extensionId);
-});
-
-ipcMain.handle('extensions:downloadFromUrl', async (_, url) => {
-  return extensionManager.downloadExtensionFromUrl(url);
 });
 
 // Advanced Page Actions
