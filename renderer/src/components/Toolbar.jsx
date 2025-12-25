@@ -6,7 +6,7 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import { useSettings } from '../context/SettingsContext';
 
-const Toolbar = memo(forwardRef(function Toolbar({ url, onNavigate, onGoBack, onGoForward, onReload, onStop, isLoading, closePopoversRef, onOpenSettings, onOpenAbout }, ref) {
+const Toolbar = memo(forwardRef(function Toolbar({ url, onNavigate, onGoBack, onGoForward, onReload, onStop, isLoading, closePopoversRef, onOpenSettings, onOpenAbout, onOpenExtensions }, ref) {
     const { theme, toggleTheme } = useTheme();
     const { settings } = useSettings() || {};
     const searchEngine = settings?.searchEngine || 'google';
@@ -574,7 +574,16 @@ const Toolbar = memo(forwardRef(function Toolbar({ url, onNavigate, onGoBack, on
                     )}
                 </div>
 
-                <button className={btnClass} title="Extensions"><Puzzle size={18} /></button>
+                <button
+                    className={btnClass}
+                    title="Extensions"
+                    onClick={() => {
+                        onOpenExtensions?.();
+                        setActivePopover(null);
+                    }}
+                >
+                    <Puzzle size={18} />
+                </button>
 
                 {/* AI */}
                 <div className="relative">
