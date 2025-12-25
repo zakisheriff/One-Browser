@@ -6,7 +6,7 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import { useSettings } from '../context/SettingsContext';
 
-const Toolbar = memo(forwardRef(function Toolbar({ url, onNavigate, onGoBack, onGoForward, onReload, onStop, isLoading, closePopoversRef, onOpenSettings }, ref) {
+const Toolbar = memo(forwardRef(function Toolbar({ url, onNavigate, onGoBack, onGoForward, onReload, onStop, isLoading, closePopoversRef, onOpenSettings, onOpenAbout }, ref) {
     const { theme, toggleTheme } = useTheme();
     const { settings } = useSettings() || {};
     const searchEngine = settings?.searchEngine || 'google';
@@ -617,8 +617,34 @@ const Toolbar = memo(forwardRef(function Toolbar({ url, onNavigate, onGoBack, on
                     {activePopover === 'menu' && (
                         <div className={`${popoverClass} w-56`}>
                             <div className="py-2">
-                                <button className={menuItemClass}><Eye size={16} />Developer Tools</button>
-                                <button className={menuItemClass}><EyeOff size={16} />New Incognito Window</button>
+                                <button
+                                    className={menuItemClass}
+                                    onClick={() => {
+                                        // Open DevTools for the renderer/main window
+                                        if (window.electronAPI?.toggleDevTools) {
+                                            // Get any active webview's webContentsId and toggle its DevTools
+                                            const webview = document.querySelector('webview');
+                                            if (webview && webview.getWebContentsId) {
+                                                window.electronAPI.toggleDevTools(webview.getWebContentsId());
+                                            }
+                                        }
+                                        setActivePopover(null);
+                                    }}
+                                >
+                                    <Eye size={16} />Developer Tools
+                                </button>
+                                <button
+                                    className={menuItemClass}
+                                    onClick={() => {
+                                        // Open new incognito window
+                                        if (window.electronAPI?.createIncognitoWindow) {
+                                            window.electronAPI.createIncognitoWindow();
+                                        }
+                                        setActivePopover(null);
+                                    }}
+                                >
+                                    <EyeOff size={16} />New Incognito Window
+                                </button>
                                 <div className={`my-1 h-px mx-3 ${theme === 'dark' ? 'bg-white/10' : 'bg-black/10'}`} />
                                 <button className={menuItemClass} onClick={() => {
                                     if (window.electronAPI?.log) window.electronAPI.log('Toolbar: Settings Clicked');
@@ -628,7 +654,15 @@ const Toolbar = memo(forwardRef(function Toolbar({ url, onNavigate, onGoBack, on
                                 }}>
                                     <Settings size={16} />Settings
                                 </button>
-                                <button className={menuItemClass}><Info size={16} />About One Browser</button>
+                                <button
+                                    className={menuItemClass}
+                                    onClick={() => {
+                                        onOpenAbout?.();
+                                        setActivePopover(null);
+                                    }}
+                                >
+                                    <Info size={16} />About One Browser
+                                </button>
                             </div>
                         </div>
                     )}

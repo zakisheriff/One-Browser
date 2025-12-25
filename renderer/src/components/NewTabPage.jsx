@@ -192,7 +192,7 @@ function NewTabPage({ onNavigate, onOpenPanel }) {
     };
 
     return (
-        <div className={`h-full w-full flex flex-col items-center justify-center p-8 rounded-3xl overflow-auto ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}>
+        <div className={`h-full w-full flex flex-col items-center justify-center p-8 rounded-[32px] overflow-auto ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}>
             {/* Dynamic Search Engine Logo */}
             <div className="mb-8 text-center">
                 <div className="w-20 h-20 mx-auto mb-4 flex items-center justify-center">

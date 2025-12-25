@@ -65,4 +65,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     inspectElement: (webContentsId, x, y) => ipcRenderer.invoke('inspect-element', webContentsId, x, y),
     openDevTools: (webContentsId, mode) => ipcRenderer.invoke('open-devtools', webContentsId, mode),
     toggleDevTools: (webContentsId) => ipcRenderer.invoke('toggle-devtools', webContentsId),
+    createIncognitoWindow: () => ipcRenderer.invoke('window:incognito'),
+    onShowAbout: (callback) => ipcRenderer.on('show-about', () => callback()),
+    removeShowAboutListeners: () => ipcRenderer.removeAllListeners('show-about'),
 });

@@ -1,20 +1,27 @@
-import React, { useState, useEffect, useCallback, useRef, memo, useContext } from 'react';
+import React, { useState, useEffect, useCallback, useRef, memo, useContext, useMemo } from 'react';
 import Titlebar from './components/Titlebar';
 import TabBar from './components/TabBar';
 import Toolbar from './components/Toolbar';
 import WebViewContainer from './components/WebViewContainer';
 import NewTabPage from './components/NewTabPage';
 import SettingsModal from './components/SettingsModal';
+import AboutModal from './components/AboutModal';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { TabProvider, useTabs } from './context/TabContext';
 // ... imports
 import { SettingsProvider, useSettings } from './context/SettingsContext';
+
+// Check if running in incognito mode
+const urlParams = new URLSearchParams(window.location.search);
+const isIncognito = urlParams.get('incognito') === 'true';
+const incognitoPartition = urlParams.get('partition') || null;
 
 const BrowserApp = memo(function BrowserApp() {
     const { theme } = useTheme();
     const { tabs, activeTabId, addTab, addTabInBackground, removeTab, updateTab } = useTabs();
     const { settings } = useSettings();
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [isAboutOpen, setIsAboutOpen] = useState(false);
 
     const webviewRefs = useRef({});
     const closePopoversRef = useRef(null);
@@ -115,6 +122,13 @@ const BrowserApp = memo(function BrowserApp() {
             });
         }
 
+        // Listen for show-about event from menu
+        if (window.electronAPI.onShowAbout) {
+            window.electronAPI.onShowAbout(() => {
+                setIsAboutOpen(true);
+            });
+        }
+
         // Cleanup listeners on unmount
         return () => {
             if (window.electronAPI.removeNewTabListeners) window.electronAPI.removeNewTabListeners();
@@ -122,6 +136,7 @@ const BrowserApp = memo(function BrowserApp() {
             if (window.electronAPI.removeReloadTabListeners) window.electronAPI.removeReloadTabListeners();
             if (window.electronAPI.removeNewTabRequestedListeners) window.electronAPI.removeNewTabRequestedListeners();
             if (window.electronAPI.removeGlobalClickListeners) window.electronAPI.removeGlobalClickListeners();
+            if (window.electronAPI.removeShowAboutListeners) window.electronAPI.removeShowAboutListeners();
         };
     }, []);
 
@@ -177,7 +192,7 @@ const BrowserApp = memo(function BrowserApp() {
     const isTop = toolbarPosition === 'top';
 
     return (
-        <div className={`h-screen w-screen flex flex-col overflow-hidden ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}>
+        <div className={`h-screen w-screen flex flex-col overflow-hidden rounded-[32px] ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}>
             <Titlebar />
 
             {/* TOP TOOLBAR & TABS */}
@@ -193,6 +208,7 @@ const BrowserApp = memo(function BrowserApp() {
                         isLoading={activeTab?.loading || false}
                         closePopoversRef={closePopoversRef}
                         onOpenSettings={() => setIsSettingsOpen(true)}
+                        onOpenAbout={() => setIsAboutOpen(true)}
                     />
                     <div className="py-2 px-2">
                         <TabBar />
@@ -202,7 +218,7 @@ const BrowserApp = memo(function BrowserApp() {
 
             {/* MAIN CONTENT */}
             <div
-                className={`flex-1 relative overflow-hidden mx-3 rounded-2xl border ${theme === 'dark' ? 'border-white/10' : 'border-black/10'}`}
+                className={`flex-1 relative overflow-hidden mx-4 mb-2 rounded-[32px] ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}
                 onClick={handleContentClick}
             >
                 {tabs.map((tab) => (
@@ -211,6 +227,8 @@ const BrowserApp = memo(function BrowserApp() {
                             ref={(ref) => webviewRefs.current[tab.id] = ref}
                             url={tab.url || getHomeUrl()}
                             tabId={tab.id}
+                            isIncognito={isIncognito}
+                            partition={incognitoPartition}
                             onFocus={() => {
                                 setActiveTabId(tab.id);
                                 closePopoversRef.current?.close?.();
@@ -240,12 +258,14 @@ const BrowserApp = memo(function BrowserApp() {
                             onOpenSettings={() => {
                                 setIsSettingsOpen(true);
                             }}
+                            onOpenAbout={() => setIsAboutOpen(true)}
                         />
                     </>
                 )
             }
 
             <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+            <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
         </div >
     );
 });

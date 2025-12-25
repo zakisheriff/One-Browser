@@ -17,7 +17,7 @@
     "privacy",
     "glassmorphism"
   ],
-  "author": "One Browser Team",
+  "author": "The One Atom",
   "license": "MIT",
   "devDependencies": {
     "concurrently": "^8.2.2",
@@ -37,7 +37,7 @@
       "renderer/dist/**/*"
     ],
     "mac": {
-      "icon": "assets/icon.icns",
+      "icon": "logo.icns",
       "target": "dmg"
     },
     "win": {

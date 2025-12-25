@@ -11,6 +11,9 @@ const RENDERER_PROD_PATH = path.join(__dirname, '../renderer/dist/index.html');
 // Hide automation flag to prevent anti-bot detection
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled');
 
+// Set app name for macOS menu bar
+app.setName('One Browser');
+
 function createWindow(targetUrl) {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -18,12 +21,13 @@ function createWindow(targetUrl) {
     minWidth: 800,
     minHeight: 600,
     frame: false,
-    transparent: false,
-    backgroundColor: '#000000',
+    transparent: true,
+    backgroundColor: '#00000000', // Fully transparent
     show: false,
     fullscreenable: true,
-    simpleFullscreen: false, // Use native macOS fullscreen
+    simpleFullscreen: false,
     hasShadow: true,
+    titleBarStyle: 'hiddenInset',
     webPreferences: {
       preload: path.join(__dirname, '../preload/preload.js'),
       nodeIntegration: false,
@@ -217,22 +221,30 @@ function createTray() {
 }
 
 function createIncognitoWindow() {
-  const incognitoSession = session.fromPartition('temp', { cache: false });
+  // Create a unique temporary partition for this incognito window (no persistence)
+  const incognitoPartition = `incognito-${Date.now()}`;
+  const incognitoSession = session.fromPartition(incognitoPartition, { cache: false });
+
+  // Configure session to not store any data
+  incognitoSession.setPermissionRequestHandler((webContents, permission, callback) => {
+    callback(true);
+  });
 
   const incognitoWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     frame: false,
-    transparent: false,
-    backgroundColor: '#000000',
+    transparent: true,
+    backgroundColor: '#00000000',
     show: false,
+    hasShadow: true,
+    titleBarStyle: 'hiddenInset',
     webPreferences: {
       preload: path.join(__dirname, '../preload/preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: false,
       webviewTag: true,
-      session: incognitoSession,
     },
   });
 
@@ -240,16 +252,39 @@ function createIncognitoWindow() {
     incognitoWindow.show();
   });
 
+  // Clear all session data when incognito window closes
+  incognitoWindow.on('closed', () => {
+    incognitoSession.clearStorageData();
+    incognitoSession.clearCache();
+  });
+
   if (isDev) {
-    incognitoWindow.loadURL(RENDERER_DEV_URL + '?incognito=true');
+    incognitoWindow.loadURL(RENDERER_DEV_URL + `?incognito=true&partition=${incognitoPartition}`);
   } else {
-    incognitoWindow.loadFile(RENDERER_PROD_PATH, { query: { incognito: 'true' } });
+    incognitoWindow.loadFile(RENDERER_PROD_PATH, { query: { incognito: 'true', partition: incognitoPartition } });
   }
 }
 
 // Application Menu
 function createMenu() {
+  const isMac = process.platform === 'darwin';
+
   const template = [
+    // App menu (macOS only)
+    ...(isMac ? [{
+      label: 'One Browser',
+      submenu: [
+        { label: 'About One Browser', click: () => mainWindow?.webContents.send('show-about') },
+        { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
+        { label: 'Hide One Browser', role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { label: 'Quit One Browser', role: 'quit' },
+      ],
+    }] : []),
     {
       label: 'File',
       submenu: [
@@ -258,7 +293,7 @@ function createMenu() {
         { label: 'New Incognito Window', accelerator: 'CmdOrCtrl+Shift+N', click: createIncognitoWindow },
         { type: 'separator' },
         { label: 'Close Tab', accelerator: 'CmdOrCtrl+W', click: () => mainWindow?.webContents.send('close-tab') },
-        { role: 'quit' },
+        ...(isMac ? [] : [{ role: 'quit' }]),
       ],
     },
     {
@@ -296,9 +331,7 @@ function createMenu() {
       submenu: [
         {
           label: 'About One Browser',
-          click: () => {
-            // Show about dialog
-          },
+          click: () => mainWindow?.webContents.send('show-about'),
         },
       ],
     },
@@ -541,6 +574,10 @@ ipcMain.handle('image:save', async (_, url) => {
 // Window creation
 ipcMain.handle('window:create', (_, url) => {
   createWindow(url);
+});
+
+ipcMain.handle('window:incognito', () => {
+  createIncognitoWindow();
 });
 
 ipcMain.handle('log', (_, message) => {

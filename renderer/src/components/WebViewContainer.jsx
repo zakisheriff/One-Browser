@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useImperativeHandle, forwardRef, memo, useSta
 import { useTabs } from '../context/TabContext';
 import { useTheme } from '../context/ThemeContext';
 
-const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus, onOpenInNewTab }, ref) => {
+const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus, onOpenInNewTab, isIncognito, partition }, ref) => {
     const webviewRef = useRef(null);
     const { updateTab } = useTabs();
     const { theme } = useTheme();
@@ -226,7 +226,7 @@ const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus, onOpenInNewTab 
 
     return (
         <div
-            className="h-full w-full overflow-hidden rounded-2xl relative bg-white"
+            className="h-full w-full overflow-hidden rounded-[32px] relative"
             onClick={handleFocus}
             onMouseDown={handleFocus}
         >
@@ -243,7 +243,7 @@ const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus, onOpenInNewTab 
                 src={postBody ? 'about:blank' : url}
                 className="w-full h-full"
                 allowpopups="true"
-                partition="persist:main"
+                partition={isIncognito && partition ? partition : 'persist:main'}
                 useragent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
                 httpreferrer={referrer}
                 webpreferences="contextIsolation=no, javascript=yes, webSecurity=yes, allowRunningInsecureContent=no"
