@@ -612,6 +612,10 @@ ipcMain.handle('extensions:getPopupUrl', (_, extensionId) => {
   return extensionManager.getExtensionPopupUrl(extensionId);
 });
 
+ipcMain.handle('extensions:downloadFromUrl', async (_, url) => {
+  return extensionManager.downloadExtensionFromUrl(url);
+});
+
 // Advanced Page Actions
 ipcMain.handle('page:print', (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
