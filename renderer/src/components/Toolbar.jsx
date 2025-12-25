@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, memo, useCallback, forwardRef, useImperativeHandle } from 'react';
 import {
     ArrowLeft, ArrowRight, RotateCw, X as StopIcon, Home, Star, Download,
-    Clock, Puzzle, Sparkles, Sun, Moon, Shield, MoreVertical, Settings, Info, Eye, EyeOff, Search, Trash2
+    Clock, Sparkles, Sun, Moon, Shield, MoreVertical, Settings, Info, Eye, EyeOff, Search, Trash2
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useSettings } from '../context/SettingsContext';
@@ -573,15 +573,6 @@ const Toolbar = memo(forwardRef(function Toolbar({ url, onNavigate, onGoBack, on
                         </div>
                     )}
                 </div>
-
-                <button
-                    className={btnClass}
-                    title="Extensions (Not Available)"
-                    disabled
-                    style={{ opacity: 0.5, cursor: 'not-allowed' }}
-                >
-                    <Puzzle size={18} />
-                </button>
 
                 {/* AI */}
                 <div className="relative">
