@@ -146,8 +146,18 @@ const WebViewContainer = memo(forwardRef(({ url, tabId, onFocus, onOpenInNewTab 
             }
 
             menuItems.push(
-                { label: 'View Page Source', action: () => webview.loadURL('view-source:' + webview.getURL()) },
-                { label: 'Inspect Element', action: () => webview.openDevTools({ mode: 'right' }) }
+                {
+                    label: 'Developer Tools',
+                    action: () => {
+                        const webContentsId = webview.getWebContentsId();
+                        if (window.electronAPI?.openDevTools) {
+                            // Open in detached mode for full Chrome DevTools experience
+                            window.electronAPI.openDevTools(webContentsId, 'undocked');
+                        } else {
+                            webview.openDevTools({ mode: 'detach' });
+                        }
+                    }
+                }
             );
 
             const rect = webview.getBoundingClientRect();

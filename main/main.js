@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu, Tray, session, net, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, Tray, session, net, dialog, webContents } = require('electron');
 const path = require('path');
 
 let mainWindow;
@@ -576,6 +576,59 @@ ipcMain.handle('page:save', async (event) => {
     return filePath;
   }
   return null;
+});
+
+ipcMain.handle('inspect-element', (event, webContentsId, x, y) => {
+  const contents = webContents.fromId(webContentsId);
+  if (contents) {
+    // Check if DevTools is already open
+    if (contents.isDevToolsOpened()) {
+      // DevTools already open, just inspect the element
+      contents.inspectElement(x, y);
+    } else {
+      // Open DevTools and wait for it to be ready before inspecting
+      contents.openDevTools({ mode: 'right' });
+
+      // Listen for when DevTools is fully opened
+      contents.once('devtools-opened', () => {
+        // Small delay to ensure DevTools is fully initialized
+        setTimeout(() => {
+          contents.inspectElement(x, y);
+        }, 100);
+      });
+    }
+    return true;
+  }
+  return false;
+});
+
+// Open DevTools in detached mode for full Chrome experience
+ipcMain.handle('open-devtools', (event, webContentsId, mode = 'detach') => {
+  const contents = webContents.fromId(webContentsId);
+  if (contents) {
+    if (contents.isDevToolsOpened()) {
+      contents.closeDevTools();
+    }
+    // mode can be: 'right', 'bottom', 'left', 'undocked' (detach)
+    const devToolsMode = mode === 'undocked' ? 'detach' : mode;
+    contents.openDevTools({ mode: devToolsMode });
+    return true;
+  }
+  return false;
+});
+
+// Toggle DevTools
+ipcMain.handle('toggle-devtools', (event, webContentsId) => {
+  const contents = webContents.fromId(webContentsId);
+  if (contents) {
+    if (contents.isDevToolsOpened()) {
+      contents.closeDevTools();
+    } else {
+      contents.openDevTools({ mode: 'detach' });
+    }
+    return true;
+  }
+  return false;
 });
 
 // App lifecycle

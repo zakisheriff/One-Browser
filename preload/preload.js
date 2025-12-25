@@ -62,4 +62,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onDownloadProgress: (callback) => ipcRenderer.on('download-progress', (_, data) => callback(data)),
     onGlobalClick: (callback) => ipcRenderer.on('global-click', () => callback()),
     removeGlobalClickListeners: () => ipcRenderer.removeAllListeners('global-click'),
+    inspectElement: (webContentsId, x, y) => ipcRenderer.invoke('inspect-element', webContentsId, x, y),
+    openDevTools: (webContentsId, mode) => ipcRenderer.invoke('open-devtools', webContentsId, mode),
+    toggleDevTools: (webContentsId) => ipcRenderer.invoke('toggle-devtools', webContentsId),
 });
